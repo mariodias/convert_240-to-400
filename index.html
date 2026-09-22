@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conversor CNAB240 para CNAB400 Vórtx</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #fafbf7;
+    --superficie: #ffffff;
+    --faixa: #e4eedf;
+    --tinta: #1e2a23;
+    --tinta-suave: #56655b;
+    --verde: #2e6a4e;
+    --verde-forte: #1f4d38;
+    --linha: #c9d6c4;
+    --aviso: #7a4f08;
+    --aviso-fundo: #fbf1dc;
+    --erro: #a1271d;
+    --erro-fundo: #fbe7e4;
+    --campo-hover: #bfd8c3;
+    --sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    color-scheme: light dark;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --papel: #141a16; --superficie: #1a221d; --faixa: #1f2b24; --tinta: #e1e9e3;
+      --tinta-suave: #9aaa9f; --verde: #7fc3a0; --verde-forte: #a5dcbf; --linha: #33443a;
+      --aviso: #f0c878; --aviso-fundo: #2e2615; --erro: #f2a097; --erro-fundo: #33191a;
+      --campo-hover: #2f5140;
+    }
+  }
+  :root[data-theme="dark"] {
+    --papel: #141a16; --superficie: #1a221d; --faixa: #1f2b24; --tinta: #e1e9e3;
+    --tinta-suave: #9aaa9f; --verde: #7fc3a0; --verde-forte: #a5dcbf; --linha: #33443a;
+    --aviso: #f0c878; --aviso-fundo: #2e2615; --erro: #f2a097; --erro-fundo: #33191a;
+    --campo-hover: #2f5140;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: var(--papel); color: var(--tinta);
+    font: 400 1rem/1.55 var(--sans);
+  }
+  main { max-width: 72rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.75rem; line-height: 1.2; font-weight: 600; margin: 0 0 .5rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.125rem; font-weight: 600; margin: 0 0 .75rem; }
+  p { margin: 0 0 .75rem; max-width: 65ch; }
+  .intro { color: var(--tinta-suave); }
+  .grade { display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); gap: 2rem; margin-top: 2rem; }
+  @media (max-width: 52rem) { .grade { grid-template-columns: minmax(0, 1fr); } }
+
+  fieldset { border: 0; padding: 0; margin: 0 0 1.5rem; }
+  legend { font-weight: 600; margin-bottom: .5rem; padding: 0; }
+  label { display: block; font-size: .9rem; color: var(--tinta-suave); margin-bottom: .25rem; }
+  .campo { margin-bottom: .85rem; }
+  .dupla { display: grid; grid-template-columns: 1fr 6.5rem; gap: .75rem; }
+  input[type=text], select {
+    width: 100%; font: 400 1rem/1.3 var(--mono); color: var(--tinta);
+    background: var(--superficie); border: 1px solid var(--linha); border-radius: 4px; padding: .5rem .6rem;
+  }
+  input[type=text]:focus-visible, select:focus-visible, button:focus-visible, .soltar:focus-within, .registro:focus-visible {
+    outline: 2px solid var(--verde); outline-offset: 2px;
+  }
+  .check { display: flex; gap: .5rem; align-items: flex-start; font-size: .95rem; color: var(--tinta); }
+  .check input { margin-top: .3rem; accent-color: var(--verde); }
+  .ajuda { font-size: .85rem; color: var(--tinta-suave); margin-top: .25rem; }
+
+  .soltar {
+    display: block; border: 1.5px dashed var(--linha); border-radius: 6px; padding: 1.25rem 1rem;
+    background: var(--superficie); cursor: pointer; text-align: center; color: var(--tinta-suave);
+  }
+  .soltar.ativo { border-color: var(--verde); background: var(--faixa); }
+  .soltar strong { color: var(--tinta); font-weight: 500; }
+  .soltar input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .arquivo-atual { font: 500 .9rem var(--mono); color: var(--verde-forte); margin-top: .5rem; word-break: break-all; }
+  .link { background: none; border: 0; padding: 0; color: var(--verde); font: inherit; font-size: .9rem; text-decoration: underline; cursor: pointer; margin-top: .5rem; }
+
+  .botao {
+    font: 600 1rem var(--sans); border: 0; border-radius: 4px; padding: .7rem 1.1rem; cursor: pointer;
+    background: var(--verde); color: var(--papel);
+  }
+  .botao:disabled { opacity: .45; cursor: not-allowed; }
+  .botao.secundario { background: transparent; color: var(--verde); border: 1.5px solid var(--verde); }
+
+  .vazio { border: 1px solid var(--linha); border-radius: 6px; padding: 1.5rem; color: var(--tinta-suave); background: var(--superficie); }
+  .resumo { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; margin-bottom: 1rem; }
+  .resumo .nome { font: 500 1.05rem var(--mono); word-break: break-all; }
+  .resumo .contagem { color: var(--tinta-suave); font-size: .95rem; }
+  .caixa { border-radius: 6px; padding: .9rem 1rem; margin-bottom: 1rem; }
+  .caixa.aviso { background: var(--aviso-fundo); color: var(--aviso); }
+  .caixa.erro { background: var(--erro-fundo); color: var(--erro); }
+  .caixa ul { margin: .25rem 0 0; padding-left: 1.2rem; }
+  .caixa li { margin: .15rem 0; }
+
+  /* Prévia em formulário contínuo */
+  .previa { margin-top: 2.5rem; }
+  .formulario {
+    overflow-x: auto; border: 1px solid var(--linha); border-radius: 6px; background: var(--superficie);
+    font: 400 .82rem/1 var(--mono);
+  }
+  .formulario-interno { width: max-content; min-width: 100%; padding: .5rem 0; }
+  .regua, .registro { display: flex; white-space: pre; }
+  .num-linha { flex: 0 0 4.5ch; text-align: right; padding-right: 1.5ch; color: var(--tinta-suave); user-select: none; }
+  .regua { color: var(--tinta-suave); padding-bottom: .35rem; opacity: .8; }
+  .regua-marcas { position: relative; width: 400ch; height: 1.2em; font-size: .82rem; }
+  .regua-marcas span { position: absolute; }
+  .registro { padding: .3rem 0; cursor: pointer; }
+  .registro:nth-of-type(even) { background: var(--faixa); }
+  .registro.selecionado { box-shadow: inset 3px 0 0 var(--verde); }
+  .registro .c { border-radius: 2px; }
+  .registro .c:hover, .registro .c.foco { background: var(--campo-hover); }
+  .detalhe { margin-top: 1.25rem; }
+  .tabela-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--linha); vertical-align: top; }
+  th { font-weight: 600; color: var(--tinta-suave); }
+  td.pos { font-family: var(--mono); white-space: nowrap; color: var(--tinta-suave); }
+  td.valor { font-family: var(--mono); white-space: pre; }
+  tr[data-campo] { cursor: default; }
+  tr.foco td { background: var(--faixa); }
+  footer { margin-top: 3rem; font-size: .85rem; color: var(--tinta-suave); }
+  footer p { max-width: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Conversor de remessa CNAB240 para CNAB400 Vórtx</h1>
+  <p class="intro">Converte um arquivo de remessa CNAB240 no padrão FEBRABAN (segmentos P, Q e R) para o layout CNAB400 da Vórtx, banco 310, versão 1.1. O arquivo é processado no seu navegador e não é enviado para nenhum servidor.</p>
+
+  <div class="grade">
+    <form id="form" novalidate>
+      <fieldset>
+        <legend>Arquivo CNAB240</legend>
+        <label class="soltar" id="soltar">
+          <input type="file" id="arquivo" accept=".rem,.txt,.240,text/plain">
+          <strong>Escolha um arquivo</strong> ou arraste para cá
+        </label>
+        <div class="arquivo-atual" id="arquivo-atual" aria-live="polite"></div>
+        <button type="button" class="link" id="exemplo">Usar arquivo de exemplo</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>Conta do beneficiário</legend>
+        <div class="dupla campo">
+          <div>
+            <label for="conta">Conta com dígito</label>
+            <input type="text" id="conta" inputmode="numeric" autocomplete="off" placeholder="12345678-9" required>
+          </div>
+          <div>
+            <label for="agencia">Agência</label>
+            <input type="text" id="agencia" inputmode="numeric" autocomplete="off" placeholder="0001" required>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="carteira">Carteira</label>
+          <input type="text" id="carteira" inputmode="numeric" value="21" required>
+        </div>
+        <div class="campo">
+          <label for="contaGrafeno">Conta Grafeno do header, sem dígito (opcional)</label>
+          <input type="text" id="contaGrafeno" inputmode="numeric" autocomplete="off">
+          <p class="ajuda">Se ficar vazio, usa a conta do beneficiário sem o dígito.</p>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Remessa</legend>
+        <div class="campo">
+          <label for="sequencial">Número sequencial da remessa</label>
+          <input type="text" id="sequencial" inputmode="numeric" required>
+          <p class="ajuda">Nunca pode se repetir. Incremente a cada arquivo enviado.</p>
+        </div>
+        <div class="campo">
+          <label for="nossoNumero">Nosso número nas entradas</label>
+          <select id="nossoNumero">
+            <option value="manter">Manter o do arquivo 240</option>
+            <option value="grafeno">Deixar a Grafeno gerar</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label class="check"><input type="checkbox" id="bairroNaMensagem"> Colocar o bairro do pagador no campo de mensagem</label>
+          <p class="ajuda">O registro 1 da Vórtx não tem campo de bairro, cidade ou UF.</p>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="botao" id="converter" disabled>Converter arquivo</button>
+    </form>
+
+    <section aria-labelledby="titulo-resultado">
+      <h2 id="titulo-resultado">Resultado</h2>
+      <div id="resultado" aria-live="polite">
+        <div class="vazio">Escolha um arquivo CNAB240 e preencha os dados da conta para gerar a remessa CNAB400.</div>
+      </div>
+    </section>
+  </div>
+
+  <section class="previa" id="previa" hidden aria-labelledby="titulo-previa">
+    <h2 id="titulo-previa">Prévia do arquivo gerado</h2>
+    <p class="intro">Passe o cursor sobre um trecho para ver o campo e suas posições. Clique numa linha para ver todos os campos do registro.</p>
+    <div class="formulario"><div class="formulario-interno" id="formulario"></div></div>
+    <div class="detalhe" id="detalhe"></div>
+  </section>
+
+  <footer>
+    <p>Layout de referência: Grafeno Vórtx CNAB 400, Remessa v1.1. Gera os registros 0, 1, 2 e 9; split (3) e sacador com endereço (7) não são gerados.</p>
+  </footer>
+</main>
+
+<script src="conversor.js"></script>
+<script>
+(function () {
+  "use strict";
+  const EXEMPLO = "99900000         200000000000000                                        EMPRESA TESTE CNAB LTDA       BANCO VORTX  TESTE                      122092026100000000001107                                                                          \r\n99900011R01  060                                                         EMPRESA TESTE CNAB LTDA                                                                                                                                                \r\n3100001300001P 010000100000009999999 0000000000000000010111122TESTE-0001     3010202600000000015000000000002N22092026200000000000000000000100120102026000000000001000000000000000000000000000000000CTRL-TESTE-0001          3000000090000000000 \r\n3100001300002Q 011000047607039937PAGADOR TESTE UM                        RUA TESTE 100                           BAIRRO TESTE   01230000CIDADE TESTE   SP2226664686000109AVALISTA TESTE SA                       00000000000000000000000        \r\n3100001300003R 01225102026000000000000500000000000000000000000000231102026000000000000200          MENSAGEM DE TESTE NO BOLETO                                                                                                                  \r\n3100001300004P 010000100000009999999 0000000000000000010211122TESTE-0002     1511202600000000008999000000023N22092026100000000000000000000030000000000000000000000000000000000000000000000000000000CTRL-TESTE-0002          3000000090000000000 \r\n3100001300005Q 011000047607039937PAGADOR TESTE DOIS LTDA                 AVENIDA TESTE 2000                      BAIRRO TESTE   01230000CIDADE TESTE   RJ1226664686000109AVALISTA TESTE PF                       00000000000000000000000        \r\n3100001300006R 01000000000000000000000000000000000000000000000000116112026000000000001800                                                                                                                                                       \r\n3100001300007P 010000100000009999999 0000000000000000010311122TESTE-0003     0512202600000000002500000000004N22092026300000000000000000000000201122026000000000001000000000000000000000000000000000CTRL-TESTE-0003          3000000090000000000 \r\n3100001300008Q 011000047607039937PAGADOR TESTE TRES                      TRAVESSA TESTE 3                        BAIRRO TESTE   01230000CIDADE TESTE   MG0000000000000000                                        00000000000000000000000        \r\n3100001300009P 020000100000009999999 0000000000000000009011122TESTE-0090     3009202600000000001000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0090          3000000090000000000 \r\n3100001300010Q 021000047607039937PAGADOR TESTE QUATRO                    RUA TESTE 4                             BAIRRO TESTE   01230000CIDADE TESTE   PR0000000000000000                                        00000000000000000000000        \r\n3100001300011P 060000100000009999999 0000000000000000009111122TESTE-0091     3112202600000000002000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0091          3000000090000000000 \r\n3100001300012Q 061000047607039937PAGADOR TESTE CINCO                     RUA TESTE 5                             BAIRRO TESTE   01230000CIDADE TESTE   RS0000000000000000                                        00000000000000000000000        \r\n31000015         000014                                                                                                                                                                                                                         \r\n31099999         000001000016                                                                                                                                                                                                                   \r\n";
+  const CAMPOS = ["conta", "agencia", "carteira", "sequencial"];
+  const OPCIONAIS = ["contaGrafeno"];
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), botao = $("converter"), resultado = $("resultado");
+  let entrada = null, nomeEntrada = "", ultimo = null;
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pos3 = (n) => String(n).padStart(3, "0");
+
+  // preferências locais (só nesta máquina)
+  try {
+    const salvo = JSON.parse(localStorage.getItem("vortx400-config") || "{}");
+    for (const k of [...CAMPOS, ...OPCIONAIS, "nossoNumero"]) if (salvo[k] != null) $(k).value = salvo[k];
+    if (salvo.bairroNaMensagem) $("bairroNaMensagem").checked = true;
+  } catch (e) {}
+
+  function lerConfig() {
+    const c = {};
+    for (const k of [...CAMPOS, ...OPCIONAIS]) c[k] = $(k).value.trim();
+    c.nossoNumero = $("nossoNumero").value;
+    c.bairroNaMensagem = $("bairroNaMensagem").checked;
+    return c;
+  }
+
+  function atualizarBotao() {
+    const c = lerConfig();
+    botao.disabled = !entrada || CAMPOS.some((k) => !c[k]);
+  }
+
+  function carregar(texto, nome) {
+    entrada = texto; nomeEntrada = nome;
+    $("arquivo-atual").textContent = nome;
+    atualizarBotao();
+  }
+
+  $("arquivo").addEventListener("change", async (e) => {
+    const arq = e.target.files[0];
+    if (arq) carregar(Vortx400.decodificar(new Uint8Array(await arq.arrayBuffer())), arq.name);
+  });
+
+  const soltar = $("soltar");
+  ["dragenter", "dragover"].forEach((ev) => soltar.addEventListener(ev, (e) => { e.preventDefault(); soltar.classList.add("ativo"); }));
+  ["dragleave", "drop"].forEach((ev) => soltar.addEventListener(ev, (e) => { e.preventDefault(); soltar.classList.remove("ativo"); }));
+  soltar.addEventListener("drop", async (e) => {
+    const arq = e.dataTransfer.files[0];
+    if (arq) carregar(Vortx400.decodificar(new Uint8Array(await arq.arrayBuffer())), arq.name);
+  });
+
+  $("exemplo").addEventListener("click", () => {
+    carregar(EXEMPLO, "entrada.rem (exemplo)");
+    if (!$("conta").value.trim()) {
+      $("conta").value = "12345678-9"; $("agencia").value = "0001";
+      $("carteira").value = $("carteira").value || "21"; $("sequencial").value = "1";
+    }
+    atualizarBotao();
+  });
+
+  form.addEventListener("input", atualizarBotao);
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const cfg = lerConfig();
+    try { localStorage.setItem("vortx400-config", JSON.stringify(cfg)); } catch (err) {}
+    try {
+      ultimo = Vortx400.converter(entrada, cfg);
+      mostrarResultado(ultimo);
+    } catch (err) {
+      ultimo = null;
+      $("previa").hidden = true;
+      const msg = err instanceof Vortx400.ConversaoError ? err.message : "Erro inesperado: " + err.message;
+      resultado.innerHTML = `<div class="caixa erro"><strong>O arquivo não foi convertido.</strong><ul><li>${esc(msg)}</li></ul></div>`;
+    }
+  });
+
+  function mostrarResultado(r) {
+    const avisos = r.avisos.length
+      ? `<div class="caixa aviso"><strong>${r.avisos.length === 1 ? "1 ajuste feito" : r.avisos.length + " ajustes feitos"} na conversão</strong><ul>${r.avisos.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></div>`
+      : "";
+    resultado.innerHTML = `
+      <div class="resumo">
+        <div>
+          <div class="nome">${esc(r.nomeArquivo)}</div>
+          <div class="contagem">${r.totalTitulos} ${r.totalTitulos === 1 ? "título" : "títulos"} em ${r.registros.length} registros de 400 posições</div>
+        </div>
+        <button type="button" class="botao" id="baixar">Baixar ${esc(r.nomeArquivo)}</button>
+      </div>${avisos}`;
+    $("baixar").addEventListener("click", baixar);
+    desenharPrevia(r);
+  }
+
+  function baixar() {
+    if (!ultimo) return;
+    const blob = new Blob([ultimo.conteudo], { type: "text/plain;charset=us-ascii" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = ultimo.nomeArquivo;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function desenharPrevia(r) {
+    let regua = '<div class="regua" aria-hidden="true"><span class="num-linha"></span><span class="regua-marcas">';
+    for (let i = 1; i <= 400; i += (i === 1 ? 9 : 10)) regua += `<span style="left:${i - 1}ch">${i === 1 ? "1" : "|" + i}</span>`;
+    regua += "</span></div>";
+
+    const linhas = r.registros.map((reg, i) => {
+      const trechos = reg.campos.map((c, j) =>
+        `<span class="c" data-j="${j}" title="${esc(c.campo)} (${pos3(c.ini)} a ${pos3(c.fim)}): ${esc(c.valor.trim() || "brancos")}">${esc(c.valor)}</span>`
+      ).join("");
+      return `<div class="registro" tabindex="0" role="button" data-i="${i}" aria-label="Registro ${i + 1}, tipo ${reg.tipo}"><span class="num-linha">${i + 1}</span>${trechos}</div>`;
+    }).join("");
+
+    $("formulario").innerHTML = regua + linhas;
+    $("detalhe").innerHTML = "";
+    $("previa").hidden = false;
+  }
+
+  const NOMES_TIPO = { "0": "header", "1": "dados do título", "2": "e-mail, mensagem e descontos", "9": "trailer" };
+
+  function detalhar(i) {
+    const reg = ultimo.registros[i];
+    document.querySelectorAll(".registro").forEach((el) => el.classList.toggle("selecionado", +el.dataset.i === i));
+    const linhas = reg.campos.map((c, j) =>
+      `<tr data-campo="${j}"><td class="pos">${pos3(c.ini)} a ${pos3(c.fim)}</td><td>${esc(c.campo)}</td><td class="valor">${c.valor.trim() ? esc(c.valor) : "<em>brancos</em>"}</td></tr>`
+    ).join("");
+    $("detalhe").innerHTML = `<h2>Registro ${i + 1}, tipo ${reg.tipo} (${NOMES_TIPO[reg.tipo] || ""})</h2>
+      <div class="tabela-wrap"><table><thead><tr><th>Posições</th><th>Campo</th><th>Conteúdo</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+  }
+
+  $("formulario").addEventListener("click", (e) => {
+    const el = e.target.closest(".registro");
+    if (el) detalhar(+el.dataset.i);
+  });
+  $("formulario").addEventListener("keydown", (e) => {
+    const el = e.target.closest(".registro");
+    if (el && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); detalhar(+el.dataset.i); }
+  });
+  $("detalhe").addEventListener("mouseover", (e) => {
+    const tr = e.target.closest("tr[data-campo]");
+    const sel = document.querySelector(".registro.selecionado");
+    document.querySelectorAll(".c.foco, tr.foco").forEach((x) => x.classList.remove("foco"));
+    if (tr && sel) {
+      tr.classList.add("foco");
+      const c = sel.querySelector(`.c[data-j="${tr.dataset.campo}"]`);
+      if (c) c.classList.add("foco");
+    }
+  });
+
+  atualizarBotao();
+})();
+</script>
+</body>
+</html>
