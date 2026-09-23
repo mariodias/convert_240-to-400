@@ -363,8 +363,285 @@
       nomeArquivo,
       avisos,
       totalTitulos: titulos.length,
+      larguraRegistro: 400,
     };
   }
 
-  return { converter, decodificar, dvNossoNumero, contaBeneficiario, ConversaoError };
+
+  // ================================================================ RETORNO
+  // Retorno CNAB400 Vórtx (310, v1.0) -> retorno CNAB240 FEBRABAN (segmentos T e U)
+
+  // Ocorrência Vórtx (109-110) -> código de movimento retorno FEBRABAN (T/U 016-017)
+  const OCORRENCIAS_RETORNO = {
+    "02": "02", "03": "03", "06": "06", "09": "09", "10": "09", "11": "11",
+    "12": "12", "13": "13", "14": "14", "15": "06", "17": "17", "19": "19",
+    "20": "20", "21": "41", "23": "23", "24": "03", "27": "26", "28": "28",
+    "29": "29", "30": "30", "32": "26", "33": "27", "36": "25", "41": "24",
+  };
+  const OCORRENCIAS_SEM_EQUIVALENTE = {
+    "18": "acerto de depositária", "22": "título com pagamento cancelado",
+    "40": "estorno de pagamento", "77": "Grafeno Titularidades",
+    "78": "devolução Grafeno Titularidades", "94": "registro futuro do título",
+  };
+
+  // DDMMAA (400) -> DDMMAAAA (240); zeros continuam zeros
+  function data6para8(l, ini, fim) {
+    const s = f(l, ini, fim);
+    if (s.trim() === "" || /^0+$/.test(s)) return "00000000";
+    const m = /^(\d{2})(\d{2})(\d{2})$/.exec(s);
+    const d = m && new Date(Date.UTC(2000 + +m[3], +m[2] - 1, +m[1]));
+    if (!m || d.getUTCDate() !== +m[1] || d.getUTCMonth() !== +m[2] - 1)
+      throw new ConversaoError(`data inválida '${s}' (pos ${ini}-${fim})`);
+    return m[1] + m[2] + "20" + m[3];
+  }
+
+  function fechar240(campos) {
+    let pos = 1;
+    const mapa = campos.map(([campo, valor]) => {
+      const item = { campo, valor, ini: pos, fim: pos + valor.length - 1 };
+      pos += valor.length;
+      return item;
+    });
+    const linha = mapa.map((c) => c.valor).join("");
+    if (linha.length !== 240) throw new ConversaoError(`registro 240 com ${linha.length} posições`);
+    return { tipo: linha[7] === "3" ? linha[13] : linha[7], linha, campos: mapa };
+  }
+
+  function converterRetorno(texto, configEntrada) {
+    const cfg = Object.assign(
+      {
+        banco: "310",
+        nomeBanco: "VORTX DTVM",
+        convenio: "",
+        dvConta: "",
+        nossoNumeroComDv: true,
+        versaoArquivo: "107",
+        versaoLote: "060",
+      },
+      configEntrada
+    );
+    const avisos = [];
+    const aviso = (m) => avisos.push(m);
+
+    // --- leitura do 400
+    let header = null;
+    const titulos = [];
+    let splits = 0;
+    linhasDe(texto).forEach((original, i) => {
+      const n = i + 1;
+      let l = original;
+      if (l.length !== 400) {
+        aviso(`linha ${n}: ${l.length} posições (esperado 400), completada com brancos`);
+        l = l.padEnd(400, " ").slice(0, 400);
+      }
+      switch (l[0]) {
+        case "0":
+          if (l[1] !== "2" || f(l, 3, 9) !== "RETORNO")
+            throw new ConversaoError(`linha ${n}: header não é de retorno`);
+          header = l;
+          break;
+        case "1": titulos.push({ l, n }); break;
+        case "3": splits++; break;
+        case "9": break;
+        default: aviso(`linha ${n}: registro tipo '${l[0]}' ignorado`);
+      }
+    });
+    if (!header) throw new ConversaoError("header de arquivo (tipo 0) não encontrado");
+    if (splits) aviso(`${splits === 1 ? "1 registro de split (tipo 3) ignorado" : `${splits} registros de split (tipo 3) ignorados`}: o CNAB240 FEBRABAN não tem segmento equivalente`);
+
+    // --- dados da empresa (do primeiro registro 1; na falta, do header)
+    const primeiro = titulos[0] && titulos[0].l;
+    const tipoInsc = primeiro ? ({ "01": "1", "02": "2" }[f(primeiro, 2, 3)] || "0") : "0";
+    const insc = primeiro ? f(primeiro, 4, 17).replace(/\D/g, "") : "";
+    const agencia = primeiro ? f(primeiro, 25, 29) : "0";
+    const conta = primeiro ? f(primeiro, 30, 37) : f(header, 27, 46).replace(/\D/g, "").slice(-12);
+    const nomeEmpresa = f(header, 47, 76).trim();
+    const aviso400 = f(header, 109, 113).replace(/\D/g, "") || "0";
+    const dataArquivo = data6para8(header, 95, 100);
+    const dataCredito = data6para8(header, 380, 385);
+
+    const banco = Fmt.num(cfg.banco, 3, "código do banco");
+    const conta240 = [
+      ["Agência mantenedora", Fmt.num(agencia, 5, "agência")],
+      ["Dígito da agência", " "],
+      ["Conta corrente", Fmt.num(conta, 12, "conta")],
+      ["Dígito da conta", Fmt.alfa(cfg.dvConta, 1)],
+      ["Dígito da agência/conta", " "],
+    ];
+
+    const registros = [];
+    registros.push([
+      ["Código do banco", banco],
+      ["Lote de serviço", "0000"],
+      ["Tipo de registro", "0"],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(9)],
+      ["Tipo de inscrição da empresa", tipoInsc],
+      ["Número de inscrição da empresa", Fmt.num(insc, 14, "inscrição da empresa")],
+      ["Código do convênio", Fmt.alfa(cfg.convenio, 20)],
+      ...conta240,
+      ["Nome da empresa", Fmt.alfa(nomeEmpresa, 30)],
+      ["Nome do banco", Fmt.alfa(cfg.nomeBanco, 30)],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(10)],
+      ["Código remessa/retorno", "2"],
+      ["Data de geração do arquivo", dataArquivo],
+      ["Hora de geração do arquivo", "000000"],
+      ["Número sequencial do arquivo", Fmt.num(aviso400, 6, "aviso bancário")],
+      ["Versão do layout do arquivo", Fmt.num(cfg.versaoArquivo, 3, "versão do arquivo")],
+      ["Densidade de gravação", "00000"],
+      ["Reservado ao banco", Fmt.branco(20)],
+      ["Reservado à empresa", Fmt.branco(20)],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(29)],
+    ]);
+    registros.push([
+      ["Código do banco", banco],
+      ["Lote de serviço", "0001"],
+      ["Tipo de registro", "1"],
+      ["Tipo de operação", "T"],
+      ["Tipo de serviço", "01"],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(2)],
+      ["Versão do layout do lote", Fmt.num(cfg.versaoLote, 3, "versão do lote")],
+      ["Uso exclusivo FEBRABAN", " "],
+      ["Tipo de inscrição da empresa", tipoInsc],
+      ["Número de inscrição da empresa", Fmt.num(insc, 15, "inscrição da empresa")],
+      ["Código do convênio", Fmt.alfa(cfg.convenio, 20)],
+      ...conta240,
+      ["Nome da empresa", Fmt.alfa(nomeEmpresa, 30)],
+      ["Mensagem 1", Fmt.branco(40)],
+      ["Mensagem 2", Fmt.branco(40)],
+      ["Número remessa/retorno", Fmt.num(aviso400, 8, "aviso bancário")],
+      ["Data de gravação", dataArquivo],
+      ["Data do crédito", dataCredito],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(33)],
+    ]);
+
+    let seq = 0;
+    let convertidos = 0;
+    let valorTotal = 0;
+    for (const { l, n } of titulos) {
+      const ref = `registro linha ${n}`;
+      const ocorrencia = f(l, 109, 110);
+      let movimento = OCORRENCIAS_RETORNO[ocorrencia];
+      let motivos = f(l, 319, 328);
+      if (!movimento) {
+        const desc = OCORRENCIAS_SEM_EQUIVALENTE[ocorrencia];
+        aviso(`${ref}: ocorrência ${ocorrencia}${desc ? ` (${desc})` : ""} sem equivalente no 240; título não incluído`);
+        continue;
+      }
+      if (ocorrencia === "15") motivos = "08" + motivos.slice(2).replace(/[^0-9]/g, "0");
+      if ((ocorrencia === "19" || ocorrencia === "20") && l[294] === "D") {
+        movimento = "26";
+        aviso(`${ref}: ocorrência ${ocorrencia} com motivo D (devolvido) convertida para 26 (instrução rejeitada)`);
+      }
+
+      let nn = f(l, 71, 82).replace(/\D/g, "");
+      if (!cfg.nossoNumeroComDv) nn = nn.slice(0, -1);
+      const valor = int(l, 153, 165);
+      const despesas = int(l, 176, 188);
+      const pago = int(l, 254, 266);
+      const liquido = pago > 0 ? Math.max(0, pago - despesas) : 0;
+      const contaTitulo = [
+        ["Agência mantenedora", Fmt.num(f(l, 25, 29), 5, "agência")],
+        ["Dígito da agência", " "],
+        ["Conta corrente", Fmt.num(f(l, 30, 37), 12, "conta")],
+        ["Dígito da conta", Fmt.alfa(cfg.dvConta, 1)],
+        ["Dígito da agência/conta", " "],
+      ];
+
+      registros.push([
+        ["Código do banco", banco],
+        ["Lote de serviço", "0001"],
+        ["Tipo de registro", "3"],
+        ["Número sequencial no lote", Fmt.num(++seq, 5)],
+        ["Segmento", "T"],
+        ["Uso exclusivo FEBRABAN", " "],
+        ["Código de movimento retorno", movimento],
+        ...contaTitulo,
+        ["Nosso número", Fmt.num(nn, 20, "nosso número")],
+        ["Carteira", "1"],
+        ["Número do documento (seu número)", Fmt.alfa(f(l, 117, 126).trim(), 15)],
+        ["Data de vencimento", data6para8(l, 147, 152)],
+        ["Valor do título", Fmt.num(valor, 15)],
+        ["Banco cobrador", Fmt.num(f(l, 166, 168), 3)],
+        ["Agência cobradora", Fmt.num(f(l, 169, 173), 5)],
+        ["Dígito da agência cobradora", " "],
+        ["Identificação do título na empresa", Fmt.alfa(f(l, 38, 62).trim(), 25)],
+        ["Código da moeda", "09"],
+        ["Tipo de inscrição do pagador", "0"],
+        ["Número de inscrição do pagador", Fmt.num(0, 15)],
+        ["Nome do pagador", Fmt.branco(40)],
+        ["Número do contrato", Fmt.num(0, 10)],
+        ["Valor da tarifa/custas", Fmt.num(despesas, 15)],
+        ["Motivos da ocorrência", Fmt.alfa(motivos.trim() ? motivos : "", 10)],
+        ["Uso exclusivo FEBRABAN", Fmt.branco(17)],
+      ]);
+      registros.push([
+        ["Código do banco", banco],
+        ["Lote de serviço", "0001"],
+        ["Tipo de registro", "3"],
+        ["Número sequencial no lote", Fmt.num(++seq, 5)],
+        ["Segmento", "U"],
+        ["Uso exclusivo FEBRABAN", " "],
+        ["Código de movimento retorno", movimento],
+        ["Juros, multa e encargos", Fmt.num(int(l, 267, 279), 15)],
+        ["Valor do desconto concedido", Fmt.num(int(l, 241, 253), 15)],
+        ["Valor do abatimento concedido", Fmt.num(int(l, 228, 240), 15)],
+        ["Valor do IOF recolhido", Fmt.num(0, 15)],
+        ["Valor pago pelo pagador", Fmt.num(pago, 15)],
+        ["Valor líquido a ser creditado", Fmt.num(liquido, 15)],
+        ["Valor de outras despesas", Fmt.num(0, 15)],
+        ["Valor de outros créditos", Fmt.num(int(l, 280, 292), 15)],
+        ["Data da ocorrência", data6para8(l, 111, 116)],
+        ["Data da efetivação do crédito", data6para8(l, 296, 301)],
+        ["Código da ocorrência do pagador", Fmt.branco(4)],
+        ["Data da ocorrência do pagador", Fmt.num(0, 8)],
+        ["Valor da ocorrência do pagador", Fmt.num(0, 15)],
+        ["Complemento da ocorrência do pagador", Fmt.branco(30)],
+        ["Código do banco correspondente", "000"],
+        ["Nosso número do banco correspondente", Fmt.num(0, 20)],
+        ["Uso exclusivo FEBRABAN", Fmt.branco(7)],
+      ]);
+      convertidos++;
+      valorTotal += valor;
+    }
+
+    registros.push([
+      ["Código do banco", banco],
+      ["Lote de serviço", "0001"],
+      ["Tipo de registro", "5"],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(9)],
+      ["Quantidade de registros do lote", Fmt.num(seq + 2, 6)],
+      ["Quantidade de títulos em cobrança simples", Fmt.num(convertidos, 6)],
+      ["Valor total dos títulos em cobrança simples", Fmt.num(valorTotal, 17)],
+      ["Quantidade de títulos em cobrança vinculada", Fmt.num(0, 6)],
+      ["Valor total dos títulos em cobrança vinculada", Fmt.num(0, 17)],
+      ["Quantidade de títulos em cobrança caucionada", Fmt.num(0, 6)],
+      ["Valor total dos títulos em cobrança caucionada", Fmt.num(0, 17)],
+      ["Quantidade de títulos em cobrança descontada", Fmt.num(0, 6)],
+      ["Valor total dos títulos em cobrança descontada", Fmt.num(0, 17)],
+      ["Número do aviso de lançamento", Fmt.num(aviso400, 8)],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(117)],
+    ]);
+    registros.push([
+      ["Código do banco", banco],
+      ["Lote de serviço", "9999"],
+      ["Tipo de registro", "9"],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(9)],
+      ["Quantidade de lotes do arquivo", "000001"],
+      ["Quantidade de registros do arquivo", Fmt.num(seq + 4, 6)],
+      ["Quantidade de contas para conciliação", "000000"],
+      ["Uso exclusivo FEBRABAN", Fmt.branco(205)],
+    ]);
+
+    const saida = registros.map(fechar240);
+    return {
+      registros: saida,
+      conteudo: saida.map((r) => r.linha).join("\r\n") + "\r\n",
+      nomeArquivo: `RET240_${dataArquivo}_${aviso400.padStart(5, "0")}.ret`,
+      avisos,
+      totalTitulos: convertidos,
+      larguraRegistro: 240,
+    };
+  }
+
+  return { converter, converterRetorno, decodificar, dvNossoNumero, contaBeneficiario, ConversaoError };
 });

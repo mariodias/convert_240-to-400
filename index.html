@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Conversor CNAB240 para CNAB400 Vórtx</title>
+<title>Conversor CNAB Vórtx</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -129,76 +129,133 @@
   tr.foco td { background: var(--faixa); }
   footer { margin-top: 3rem; font-size: .85rem; color: var(--tinta-suave); }
   footer p { max-width: none; }
+
+  .abas { display: flex; gap: .25rem; border-bottom: 1px solid var(--linha); margin-top: 2rem; flex-wrap: wrap; }
+  .aba {
+    font: 500 1rem var(--sans); background: none; border: 0; border-bottom: 3px solid transparent;
+    padding: .6rem .9rem; margin-bottom: -1px; color: var(--tinta-suave); cursor: pointer;
+  }
+  .aba[aria-selected="true"] { color: var(--tinta); border-bottom-color: var(--verde); }
+  .aba:focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
+  .aba .seta { font-family: var(--mono); font-size: .9rem; }
+  .grade { margin-top: 1.75rem; }
+  .regua-marcas { width: var(--largura, 400ch); }
 </style>
 </head>
 <body>
 <main>
-  <h1>Conversor de remessa CNAB240 para CNAB400 Vórtx</h1>
-  <p class="intro">Converte um arquivo de remessa CNAB240 no padrão FEBRABAN (segmentos P, Q e R) para o layout CNAB400 da Vórtx, banco 310, versão 1.1. O arquivo é processado no seu navegador e não é enviado para nenhum servidor.</p>
+  <h1>Conversor CNAB Vórtx</h1>
+  <p class="intro">Converte remessas CNAB240 (FEBRABAN) para o CNAB400 da Vórtx, banco 310, e retornos CNAB400 da Vórtx de volta para CNAB240. Os arquivos são processados no seu navegador e não são enviados para nenhum servidor.</p>
+
+  <div class="abas" role="tablist" aria-label="Tipo de conversão">
+    <button type="button" class="aba" role="tab" id="aba-remessa" aria-controls="form-remessa" aria-selected="true">Remessa <span class="seta">240 → 400</span></button>
+    <button type="button" class="aba" role="tab" id="aba-retorno" aria-controls="form-retorno" aria-selected="false" tabindex="-1">Retorno <span class="seta">400 → 240</span></button>
+  </div>
 
   <div class="grade">
-    <form id="form" novalidate>
-      <fieldset>
-        <legend>Arquivo CNAB240</legend>
-        <label class="soltar" id="soltar">
-          <input type="file" id="arquivo" accept=".rem,.txt,.240,text/plain">
-          <strong>Escolha um arquivo</strong> ou arraste para cá
-        </label>
-        <div class="arquivo-atual" id="arquivo-atual" aria-live="polite"></div>
-        <button type="button" class="link" id="exemplo">Usar arquivo de exemplo</button>
-      </fieldset>
+    <div>
+      <form id="form-remessa" role="tabpanel" aria-labelledby="aba-remessa" novalidate>
+        <fieldset>
+          <legend>Arquivo de remessa CNAB240</legend>
+          <label class="soltar">
+            <input type="file" data-arquivo accept=".rem,.txt,.240,text/plain">
+            <strong>Escolha um arquivo</strong> ou arraste para cá
+          </label>
+          <div class="arquivo-atual" data-arquivo-atual aria-live="polite"></div>
+          <button type="button" class="link" data-exemplo>Usar arquivo de exemplo</button>
+        </fieldset>
 
-      <fieldset>
-        <legend>Conta do beneficiário</legend>
-        <div class="dupla campo">
-          <div>
-            <label for="conta">Conta, sem o DV</label>
-            <input type="text" id="conta" inputmode="numeric" autocomplete="off" placeholder="12345678" required>
+        <fieldset>
+          <legend>Conta do beneficiário</legend>
+          <div class="dupla campo">
+            <div>
+              <label for="rem-conta">Conta, sem o DV</label>
+              <input type="text" id="rem-conta" name="conta" inputmode="numeric" autocomplete="off" placeholder="12345678" required>
+            </div>
+            <div>
+              <label for="rem-agencia">Agência</label>
+              <input type="text" id="rem-agencia" name="agencia" inputmode="numeric" autocomplete="off" placeholder="00001" required>
+            </div>
           </div>
-          <div>
-            <label for="agencia">Agência</label>
-            <input type="text" id="agencia" inputmode="numeric" autocomplete="off" placeholder="00001" required>
+          <div class="campo">
+            <label for="rem-carteira">Carteira</label>
+            <input type="text" id="rem-carteira" name="carteira" inputmode="numeric" value="21" required>
           </div>
-        </div>
-        <div class="campo">
-          <label for="carteira">Carteira</label>
-          <input type="text" id="carteira" inputmode="numeric" value="21" required>
-        </div>
-        <div class="campo">
-          <label for="contaGrafeno">Conta Grafeno do header, sem dígito (opcional)</label>
-          <input type="text" id="contaGrafeno" inputmode="numeric" autocomplete="off">
-          <p class="ajuda">Se ficar vazio, usa a mesma conta do beneficiário.</p>
-        </div>
-      </fieldset>
+          <div class="campo">
+            <label for="rem-contaGrafeno">Conta Grafeno do header, sem dígito (opcional)</label>
+            <input type="text" id="rem-contaGrafeno" name="contaGrafeno" inputmode="numeric" autocomplete="off">
+            <p class="ajuda">Se ficar vazio, usa a mesma conta do beneficiário.</p>
+          </div>
+        </fieldset>
 
-      <fieldset>
-        <legend>Remessa</legend>
-        <div class="campo">
-          <label for="sequencial">Número sequencial da remessa</label>
-          <input type="text" id="sequencial" inputmode="numeric" required>
-          <p class="ajuda">Nunca pode se repetir. Incremente a cada arquivo enviado.</p>
-        </div>
-        <div class="campo">
-          <label for="nossoNumero">Nosso número nas entradas</label>
-          <select id="nossoNumero">
-            <option value="manter">Manter o do arquivo 240</option>
-            <option value="grafeno">Deixar a Grafeno gerar</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label class="check"><input type="checkbox" id="bairroNaMensagem"> Colocar o bairro do pagador no campo de mensagem</label>
-          <p class="ajuda">A Vórtx usa só rua, cidade (quando cabe) e CEP. O bairro normalmente não é enviado.</p>
-        </div>
-      </fieldset>
+        <fieldset>
+          <legend>Remessa</legend>
+          <div class="campo">
+            <label for="rem-sequencial">Número sequencial da remessa</label>
+            <input type="text" id="rem-sequencial" name="sequencial" inputmode="numeric" required>
+            <p class="ajuda">Nunca pode se repetir. Incremente a cada arquivo enviado.</p>
+          </div>
+          <div class="campo">
+            <label for="rem-nossoNumero">Nosso número nas entradas</label>
+            <select id="rem-nossoNumero" name="nossoNumero">
+              <option value="manter">Manter o do arquivo 240</option>
+              <option value="grafeno">Deixar a Grafeno gerar</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label class="check"><input type="checkbox" id="rem-bairroNaMensagem" name="bairroNaMensagem"> Colocar o bairro do pagador no campo de mensagem</label>
+            <p class="ajuda">A Vórtx usa só rua, cidade (quando cabe) e CEP. O bairro normalmente não é enviado.</p>
+          </div>
+        </fieldset>
 
-      <button type="submit" class="botao" id="converter" disabled>Converter arquivo</button>
-    </form>
+        <button type="submit" class="botao" disabled>Converter remessa</button>
+      </form>
+
+      <form id="form-retorno" role="tabpanel" aria-labelledby="aba-retorno" novalidate hidden>
+        <fieldset>
+          <legend>Arquivo de retorno CNAB400 Vórtx</legend>
+          <label class="soltar">
+            <input type="file" data-arquivo accept=".ret,.txt,.400,text/plain">
+            <strong>Escolha um arquivo</strong> ou arraste para cá
+          </label>
+          <div class="arquivo-atual" data-arquivo-atual aria-live="polite"></div>
+          <button type="button" class="link" data-exemplo>Usar arquivo de exemplo</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Arquivo CNAB240 gerado</legend>
+          <div class="dupla campo">
+            <div>
+              <label for="ret-nomeBanco">Nome do banco</label>
+              <input type="text" id="ret-nomeBanco" name="nomeBanco" value="VORTX DTVM" required>
+            </div>
+            <div>
+              <label for="ret-banco">Código</label>
+              <input type="text" id="ret-banco" name="banco" inputmode="numeric" value="310" required>
+            </div>
+          </div>
+          <div class="campo">
+            <label for="ret-dvConta">Dígito da conta (opcional)</label>
+            <input type="text" id="ret-dvConta" name="dvConta" maxlength="1" autocomplete="off">
+            <p class="ajuda">O retorno da Vórtx traz a conta sem o dígito. Preencha se o ERP exigir.</p>
+          </div>
+          <div class="campo">
+            <label for="ret-convenio">Código do convênio (opcional)</label>
+            <input type="text" id="ret-convenio" name="convenio" autocomplete="off">
+          </div>
+          <div class="campo">
+            <label class="check"><input type="checkbox" id="ret-nossoNumeroComDv" name="nossoNumeroComDv" checked> Incluir o DV no nosso número</label>
+            <p class="ajuda">Desmarque se o ERP guarda o nosso número sem o dígito.</p>
+          </div>
+        </fieldset>
+
+        <button type="submit" class="botao" disabled>Converter retorno</button>
+      </form>
+    </div>
 
     <section aria-labelledby="titulo-resultado">
       <h2 id="titulo-resultado">Resultado</h2>
-      <div id="resultado" aria-live="polite">
-        <div class="vazio">Escolha um arquivo CNAB240 e preencha os dados da conta para gerar a remessa CNAB400.</div>
-      </div>
+      <div id="resultado" aria-live="polite"></div>
     </section>
   </div>
 
@@ -210,7 +267,7 @@
   </section>
 
   <footer>
-    <p>Layout de referência: Grafeno Vórtx CNAB 400, Remessa v1.1. Gera os registros 0, 1, 2 e 9; split (3) e sacador com endereço (7) não são gerados.</p>
+    <p>Layouts de referência: Grafeno Vórtx CNAB 400 Remessa v1.1 e Retorno v1.0; FEBRABAN CNAB 240 cobrança (segmentos P, Q e R na remessa; T e U no retorno).</p>
   </footer>
 </main>
 
@@ -218,79 +275,129 @@
 <script>
 (function () {
   "use strict";
-  const EXEMPLO = "31000000         200000000000000                                        EMPRESA TESTE CNAB LTDA       BANCO VORTX  TESTE                      122092026100000000001107                                                                          \r\n31000011R01  060                                                         EMPRESA TESTE CNAB LTDA                                                                                                                                                \r\n3100001300001P 010000100000009999999 0000000000000000010111122TESTE-0001     3010202600000000015000000000002N22092026200000000000000000000100120102026000000000001000000000000000000000000000000000CTRL-TESTE-0001          3000000090000000000 \r\n3100001300002Q 011000012345679891PAGADOR TESTE UM                        RUA TESTE 100                           BAIRRO TESTE   01230000CIDADE TESTE   SP2217595680000136AVALISTA TESTE SA                       00000000000000000000000        \r\n3100001300003R 01225102026000000000000500000000000000000000000000231102026000000000000200          MENSAGEM DE TESTE NO BOLETO                                                                                                                  \r\n3100001300004P 010000100000009999999 0000000000000000010211122TESTE-0002     1511202600000000008999000000023N22092026100000000000000000000030000000000000000000000000000000000000000000000000000000CTRL-TESTE-0002          3000000090000000000 \r\n3100001300005Q 011000012345679891PAGADOR TESTE DOIS LTDA                 AVENIDA TESTE 2000                      BAIRRO TESTE   01230000CIDADE TESTE   RJ2217595680000136AVALISTA TESTE PF                       00000000000000000000000        \r\n3100001300006R 01000000000000000000000000000000000000000000000000116112026000000000001800                                                                                                                                                       \r\n3100001300007P 010000100000009999999 0000000000000000010311122TESTE-0003     0512202600000000002500000000004N22092026300000000000000000000000201122026000000000001000000000000000000000000000000000CTRL-TESTE-0003          3000000090000000000 \r\n3100001300008Q 011000012345679891PAGADOR TESTE TRES                      TRAVESSA TESTE 3                        BAIRRO TESTE   01230000CIDADE TESTE   MG0000000000000000                                        00000000000000000000000        \r\n3100001300009P 020000100000009999999 0000000000000000009011122TESTE-0090     3009202600000000001000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0090          3000000090000000000 \r\n3100001300010Q 021000012345679891PAGADOR TESTE QUATRO                    RUA TESTE 4                             BAIRRO TESTE   01230000CIDADE TESTE   PR0000000000000000                                        00000000000000000000000        \r\n3100001300011P 060000100000009999999 0000000000000000009111122TESTE-0091     3112202600000000002000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0091          3000000090000000000 \r\n3100001300012Q 061000012345679891PAGADOR TESTE CINCO                     RUA TESTE 5                             BAIRRO TESTE   01230000CIDADE TESTE   RS0000000000000000                                        00000000000000000000000        \r\n31000015         000014                                                                                                                                                                                                                         \r\n31099999         000001000016                                                                                                                                                                                                                   \r\n";
-  const CAMPOS = ["conta", "agencia", "carteira", "sequencial"];
-  const OPCIONAIS = ["contaGrafeno"];
   const $ = (id) => document.getElementById(id);
-  const form = $("form"), botao = $("converter"), resultado = $("resultado");
-  let entrada = null, nomeEntrada = "", ultimo = null;
-
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const pos3 = (n) => String(n).padStart(3, "0");
+  const resultado = $("resultado");
+  let ultimo = null;
 
-  // preferências locais (só nesta máquina)
-  try {
-    const salvo = JSON.parse(localStorage.getItem("vortx400-config") || "{}");
-    for (const k of [...CAMPOS, ...OPCIONAIS, "nossoNumero"]) if (salvo[k] != null) $(k).value = salvo[k];
-    if (salvo.bairroNaMensagem) $("bairroNaMensagem").checked = true;
-  } catch (e) {}
+  const MODOS = {
+    remessa: {
+      form: $("form-remessa"),
+      aba: $("aba-remessa"),
+      chave: "vortx400-config",
+      obrigatorios: ["conta", "agencia", "carteira", "sequencial"],
+      exemplo: "99900000         200000000000000                                        EMPRESA TESTE CNAB LTDA       BANCO ORIGEM TESTE                      122092026100000000001107                                                                          \r\n99900011R01  060                                                         EMPRESA TESTE CNAB LTDA                                                                                                                                                \r\n9990001300001P 010000100000009999999 0000000000000000010111122TESTE-0001     3010202600000000015000000000002N22092026200000000000000000000100120102026000000000001000000000000000000000000000000000CTRL-TESTE-0001          3000000090000000000 \r\n9990001300002Q 011000000000000191PAGADOR TESTE UM                        RUA TESTE 100                           BAIRRO TESTE   01000000CIDADE TESTE   SP2000000000000000AVALISTA TESTE SA                       00000000000000000000000        \r\n9990001300003R 01225102026000000000000500000000000000000000000000231102026000000000000200          MENSAGEM DE TESTE NO BOLETO                                                                                                                  \r\n9990001300004P 010000100000009999999 0000000000000000010211122TESTE-0002     1511202600000000008999000000023N22092026100000000000000000000030000000000000000000000000000000000000000000000000000000CTRL-TESTE-0002          3000000090000000000 \r\n9990001300005Q 012000000000000000PAGADOR TESTE DOIS LTDA                 AVENIDA TESTE 2000                      BAIRRO TESTE   02000000CIDADE TESTE   RJ1000000000000000AVALISTA TESTE PF                       00000000000000000000000        \r\n9990001300006R 01000000000000000000000000000000000000000000000000116112026000000000001800                                                                                                                                                       \r\n9990001300007P 010000100000009999999 0000000000000000010311122TESTE-0003     0512202600000000002500000000004N22092026300000000000000000000000201122026000000000001000000000000000000000000000000000CTRL-TESTE-0003          3000000090000000000 \r\n9990001300008Q 011000000000000272PAGADOR TESTE TRES                      TRAVESSA TESTE 3                        BAIRRO TESTE   03000000CIDADE TESTE   MG0000000000000000                                        00000000000000000000000        \r\n9990001300009P 020000100000009999999 0000000000000000009011122TESTE-0090     3009202600000000001000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0090          3000000090000000000 \r\n9990001300010Q 021000000000000353PAGADOR TESTE QUATRO                    RUA TESTE 4                             BAIRRO TESTE   04000000CIDADE TESTE   PR0000000000000000                                        00000000000000000000000        \r\n9990001300011P 060000100000009999999 0000000000000000009111122TESTE-0091     3112202600000000002000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0091          3000000090000000000 \r\n9990001300012Q 061000000000000434PAGADOR TESTE CINCO                     RUA TESTE 5                             BAIRRO TESTE   05000000CIDADE TESTE   RS0000000000000000                                        00000000000000000000000        \r\n99900015         000014                                                                                                                                                                                                                         \r\n99999999         000001000016                                                                                                                                                                                                                   \r\n",
+      nomeExemplo: "entrada.rem (exemplo)",
+      preencherExemplo(form) {
+        if (!form.conta.value.trim()) {
+          form.conta.value = "12345678"; form.agencia.value = "1";
+          form.carteira.value = form.carteira.value || "21"; form.sequencial.value = "1";
+        }
+      },
+      converter: (texto, cfg) => Vortx400.converter(texto, cfg),
+      vazio: "Escolha um arquivo de remessa CNAB240 e preencha os dados da conta para gerar a remessa CNAB400.",
+      tipos: { "0": "header", "1": "dados do título", "2": "e-mail, mensagem e descontos", "9": "trailer" },
+    },
+    retorno: {
+      form: $("form-retorno"),
+      aba: $("aba-retorno"),
+      chave: "vortx400-retorno-config",
+      obrigatorios: ["banco", "nomeBanco"],
+      exemplo: "02RETORNO01COBRANCA       00000000000012345678EMPRESA TESTE CNAB LTDA       310VORTX DTVM     230926        00042                                                                                                                                                                                                                                                                          230926         000001\r\n10200000000000000   00210000112345678CTRL-TESTE-0001                  0000000010150000000000             00002230926TESTE-0001                    301026000000015000000000000  000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000002\r\n10200000000000000   00210000112345678CTRL-TESTE-0002                  0000000010230000000000             00006161126TESTE-0002                    151126000000008999034101234  000000000000000000000000000000000000000000000000000000000000000000000000000000000000009179000000000018000000000000000   171126006              0000000000                                                                  000003\r\n10200000000000000   00210000112345678CTRL-TESTE-0003                  0000000000000000000000             00003230926TESTE-0003                    051226000000002500000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              4847000000                                                                  000004\r\n10200000000000000   00210000112345678CTRL-TESTE-0090                  0000000009060000000000             00009230926TESTE-0090                    300926000000001000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              1000000000                                                                  000005\r\n10200000000000000   00210000112345678CTRL-TESTE-0091                  0000000009140000000000             00014230926TESTE-0091                    311226000000002000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000006\r\n10200000000000000   00210000112345678CTRL-TESTE-0004                  0000000010310000000000             00015230926TESTE-0004                    101026000000003000000000000  000000000000000000000000000000000000000000000000000000000000000000000000001000000000002900000000000000000000000000000   240926006              0000000000                                                                  000007\r\n10200000000000000   00210000112345678CTRL-TESTE-0005                  0000000010400000000000             00019230926TESTE-0005                    011026000000004000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000  D000000006              0000000000                                                                  000008\r\n10200000000000000   00210000112345678CTRL-TESTE-0006                  0000000010580000000000             00094230926TESTE-0006                    201226000000005000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000009\r\n3021000011234567800000000101511                                                                                                                                                                                                                                                                                                                                                                           000010\r\n9201310          0000000800000000414990                                                                                                                                                                                                                                                                                                                                                                   000011\r\n",
+      nomeExemplo: "retorno_vortx400.ret (exemplo)",
+      preencherExemplo() {},
+      converter: (texto, cfg) => Vortx400.converterRetorno(texto, cfg),
+      vazio: "Escolha um arquivo de retorno CNAB400 da Vórtx para gerar o retorno CNAB240.",
+      tipos: { "0": "header de arquivo", "1": "header de lote", "T": "segmento T", "U": "segmento U", "5": "trailer de lote", "9": "trailer de arquivo" },
+    },
+  };
+  let modoAtual = "remessa";
 
-  function lerConfig() {
+  function lerConfig(form) {
     const c = {};
-    for (const k of [...CAMPOS, ...OPCIONAIS]) c[k] = $(k).value.trim();
-    c.nossoNumero = $("nossoNumero").value;
-    c.bairroNaMensagem = $("bairroNaMensagem").checked;
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      c[el.name] = el.type === "checkbox" ? el.checked : el.value.trim();
+    }
     return c;
   }
 
-  function atualizarBotao() {
-    const c = lerConfig();
-    botao.disabled = !entrada || CAMPOS.some((k) => !c[k]);
+  function limparResultado() {
+    ultimo = null;
+    $("previa").hidden = true;
+    resultado.innerHTML = `<div class="vazio">${esc(MODOS[modoAtual].vazio)}</div>`;
   }
 
-  function carregar(texto, nome) {
-    entrada = texto; nomeEntrada = nome;
-    $("arquivo-atual").textContent = nome;
-    atualizarBotao();
-  }
-
-  $("arquivo").addEventListener("change", async (e) => {
-    const arq = e.target.files[0];
-    if (arq) carregar(Vortx400.decodificar(new Uint8Array(await arq.arrayBuffer())), arq.name);
-  });
-
-  const soltar = $("soltar");
-  ["dragenter", "dragover"].forEach((ev) => soltar.addEventListener(ev, (e) => { e.preventDefault(); soltar.classList.add("ativo"); }));
-  ["dragleave", "drop"].forEach((ev) => soltar.addEventListener(ev, (e) => { e.preventDefault(); soltar.classList.remove("ativo"); }));
-  soltar.addEventListener("drop", async (e) => {
-    const arq = e.dataTransfer.files[0];
-    if (arq) carregar(Vortx400.decodificar(new Uint8Array(await arq.arrayBuffer())), arq.name);
-  });
-
-  $("exemplo").addEventListener("click", () => {
-    carregar(EXEMPLO, "entrada.rem (exemplo)");
-    if (!$("conta").value.trim()) {
-      $("conta").value = "12345678"; $("agencia").value = "1";
-      $("carteira").value = $("carteira").value || "21"; $("sequencial").value = "1";
+  function ativar(nome) {
+    modoAtual = nome;
+    for (const [k, m] of Object.entries(MODOS)) {
+      const ativo = k === nome;
+      m.form.hidden = !ativo;
+      m.aba.setAttribute("aria-selected", String(ativo));
+      m.aba.tabIndex = ativo ? 0 : -1;
     }
-    atualizarBotao();
-  });
+    limparResultado();
+  }
 
-  form.addEventListener("input", atualizarBotao);
+  Object.entries(MODOS).forEach(([nome, m]) => {
+    const form = m.form;
+    const botao = form.querySelector("button[type=submit]");
+    m.entrada = null;
 
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const cfg = lerConfig();
-    try { localStorage.setItem("vortx400-config", JSON.stringify(cfg)); } catch (err) {}
     try {
-      ultimo = Vortx400.converter(entrada, cfg);
-      mostrarResultado(ultimo);
-    } catch (err) {
-      ultimo = null;
-      $("previa").hidden = true;
-      const msg = err instanceof Vortx400.ConversaoError ? err.message : "Erro inesperado: " + err.message;
-      resultado.innerHTML = `<div class="caixa erro"><strong>O arquivo não foi convertido.</strong><ul><li>${esc(msg)}</li></ul></div>`;
-    }
+      const salvo = JSON.parse(localStorage.getItem(m.chave) || "{}");
+      for (const el of form.elements) {
+        if (!el.name || salvo[el.name] == null) continue;
+        if (el.type === "checkbox") el.checked = !!salvo[el.name]; else el.value = salvo[el.name];
+      }
+    } catch (e) {}
+
+    const atualizar = () => {
+      const c = lerConfig(form);
+      botao.disabled = !m.entrada || m.obrigatorios.some((k) => !c[k]);
+    };
+    const carregar = (texto, nomeArq) => {
+      m.entrada = texto;
+      form.querySelector("[data-arquivo-atual]").textContent = nomeArq;
+      atualizar();
+    };
+    const lerArquivo = async (arq) => carregar(Vortx400.decodificar(new Uint8Array(await arq.arrayBuffer())), arq.name);
+
+    form.querySelector("[data-arquivo]").addEventListener("change", (e) => { if (e.target.files[0]) lerArquivo(e.target.files[0]); });
+    const soltar = form.querySelector(".soltar");
+    ["dragenter", "dragover"].forEach((ev) => soltar.addEventListener(ev, (e) => { e.preventDefault(); soltar.classList.add("ativo"); }));
+    ["dragleave", "drop"].forEach((ev) => soltar.addEventListener(ev, (e) => { e.preventDefault(); soltar.classList.remove("ativo"); }));
+    soltar.addEventListener("drop", (e) => { if (e.dataTransfer.files[0]) lerArquivo(e.dataTransfer.files[0]); });
+
+    form.querySelector("[data-exemplo]").addEventListener("click", () => {
+      m.preencherExemplo(form);
+      carregar(m.exemplo, m.nomeExemplo);
+    });
+    form.addEventListener("input", atualizar);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const cfg = lerConfig(form);
+      try { localStorage.setItem(m.chave, JSON.stringify(cfg)); } catch (err) {}
+      try {
+        ultimo = m.converter(m.entrada, cfg);
+        mostrarResultado(ultimo);
+      } catch (err) {
+        ultimo = null;
+        $("previa").hidden = true;
+        const msg = err instanceof Vortx400.ConversaoError ? err.message : "Erro inesperado: " + err.message;
+        resultado.innerHTML = `<div class="caixa erro"><strong>O arquivo não foi convertido.</strong><ul><li>${esc(msg)}</li></ul></div>`;
+      }
+    });
+    m.aba.addEventListener("click", () => ativar(nome));
+    atualizar();
+  });
+
+  document.querySelector(".abas").addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const proximo = modoAtual === "remessa" ? "retorno" : "remessa";
+    ativar(proximo);
+    MODOS[proximo].aba.focus();
   });
 
   function mostrarResultado(r) {
@@ -301,9 +408,9 @@
       <div class="resumo">
         <div>
           <div class="nome">${esc(r.nomeArquivo)}</div>
-          <div class="contagem">${r.totalTitulos} ${r.totalTitulos === 1 ? "título" : "títulos"} em ${r.registros.length} registros de 400 posições</div>
+          <div class="contagem">${r.totalTitulos} ${r.totalTitulos === 1 ? "título" : "títulos"} em ${r.registros.length} registros de ${r.larguraRegistro} posições</div>
         </div>
-        <button type="button" class="botao" id="baixar">Baixar ${esc(r.nomeArquivo)}</button>
+        <button type="button" class="botao" id="baixar">Baixar arquivo</button>
       </div>${avisos}`;
     $("baixar").addEventListener("click", baixar);
     desenharPrevia(r);
@@ -311,8 +418,7 @@
 
   function baixar() {
     if (!ultimo) return;
-    const blob = new Blob([ultimo.conteudo], { type: "text/plain;charset=us-ascii" });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(new Blob([ultimo.conteudo], { type: "text/plain;charset=us-ascii" }));
     const a = document.createElement("a");
     a.href = url; a.download = ultimo.nomeArquivo;
     document.body.appendChild(a); a.click(); a.remove();
@@ -320,23 +426,20 @@
   }
 
   function desenharPrevia(r) {
-    let regua = '<div class="regua" aria-hidden="true"><span class="num-linha"></span><span class="regua-marcas">';
-    for (let i = 1; i <= 400; i += (i === 1 ? 9 : 10)) regua += `<span style="left:${i - 1}ch">${i === 1 ? "1" : "|" + i}</span>`;
+    const largura = r.larguraRegistro;
+    let regua = `<div class="regua" aria-hidden="true"><span class="num-linha"></span><span class="regua-marcas" style="--largura:${largura}ch">`;
+    for (let i = 1; i <= largura; i += (i === 1 ? 9 : 10)) regua += `<span style="left:${i - 1}ch">${i === 1 ? "1" : "|" + i}</span>`;
     regua += "</span></div>";
-
     const linhas = r.registros.map((reg, i) => {
       const trechos = reg.campos.map((c, j) =>
         `<span class="c" data-j="${j}" title="${esc(c.campo)} (${pos3(c.ini)} a ${pos3(c.fim)}): ${esc(c.valor.trim() || "brancos")}">${esc(c.valor)}</span>`
       ).join("");
-      return `<div class="registro" tabindex="0" role="button" data-i="${i}" aria-label="Registro ${i + 1}, tipo ${reg.tipo}"><span class="num-linha">${i + 1}</span>${trechos}</div>`;
+      return `<div class="registro" tabindex="0" role="button" data-i="${i}" aria-label="Registro ${i + 1}, ${esc(MODOS[modoAtual].tipos[reg.tipo] || "tipo " + reg.tipo)}"><span class="num-linha">${i + 1}</span>${trechos}</div>`;
     }).join("");
-
     $("formulario").innerHTML = regua + linhas;
     $("detalhe").innerHTML = "";
     $("previa").hidden = false;
   }
-
-  const NOMES_TIPO = { "0": "header", "1": "dados do título", "2": "e-mail, mensagem e descontos", "9": "trailer" };
 
   function detalhar(i) {
     const reg = ultimo.registros[i];
@@ -344,7 +447,8 @@
     const linhas = reg.campos.map((c, j) =>
       `<tr data-campo="${j}"><td class="pos">${pos3(c.ini)} a ${pos3(c.fim)}</td><td>${esc(c.campo)}</td><td class="valor">${c.valor.trim() ? esc(c.valor) : "<em>brancos</em>"}</td></tr>`
     ).join("");
-    $("detalhe").innerHTML = `<h2>Registro ${i + 1}, tipo ${reg.tipo} (${NOMES_TIPO[reg.tipo] || ""})</h2>
+    const nomeTipo = MODOS[modoAtual].tipos[reg.tipo] || "tipo " + reg.tipo;
+    $("detalhe").innerHTML = `<h2>Registro ${i + 1}: ${esc(nomeTipo)}</h2>
       <div class="tabela-wrap"><table><thead><tr><th>Posições</th><th>Campo</th><th>Conteúdo</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
   }
 
@@ -367,7 +471,7 @@
     }
   });
 
-  atualizarBotao();
+  limparResultado();
 })();
 </script>
 </body>
