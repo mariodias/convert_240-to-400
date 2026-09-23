@@ -36,16 +36,18 @@ Rode sempre que alterar `conversor.js`.
 
 ## Regras de conversão
 
-- **Conta do beneficiário (021–037):** informe a conta com dígito, por exemplo `12345678-9`.
-  Contas Vórtx de 8 dígitos são gravadas como zero, carteira (3), agência (4), conta (8) e DV.
-  Contas de até 7 dígitos seguem o layout original, com agência de 5 posições e conta de 7.
-  A conta Grafeno do header (027–046) é opcional e, se vazia, recebe a mesma conta sem o dígito.
+- **Conta do beneficiário (021–037):** zero, carteira (3), agência (5) e conta (8), sem o DV da conta.
+  Informe a conta só com os dígitos; se vier com DV (`12345678-9`), ele é descartado.
+  A conta Grafeno do header (027–046) é opcional e, se vazia, recebe a mesma conta.
+- **Pagador:** CPF e CNPJ com zeros à esquerda (CPF = `01` + 14 posições). O endereço recebe a rua
+  e, quando cabe nas 40 posições, a cidade (`RUA X 100 - CIDADE`). O CEP é obrigatório.
 - **Agrupamento:** cada segmento P abre um título; Q (obrigatório) e R (opcional) são anexados a ele.
 - **Ocorrências:** 01, 02, 04, 06 e 09 passam direto; 10 e 11 (sustar protesto) viram 19.
   Outros códigos de movimento geram erro.
 - **Espécie:** de-para FEBRABAN → Vórtx; espécies sem equivalente viram 99 (Outros).
 - **Juros:** valor/dia passa direto; taxa mensal é convertida para valor/dia (valor × taxa ÷ 30).
-- **Multa:** percentual passa direto; valor fixo é convertido para percentual do valor do título.
+- **Multa:** gravada com 1 casa decimal (`0020` = 2,0%). Percentuais do 240 com 2 casas são arredondados,
+  com aviso; valor fixo é convertido para percentual do valor do título.
   A data de multa do 240 é descartada.
 - **Descontos:** desconto 1 vai para o registro 1; descontos 2 e 3 (segmento R) vão para o registro 2,
   junto com a mensagem 3 do R. Descontos percentuais são convertidos para valor.
@@ -55,14 +57,13 @@ Rode sempre que alterar `conversor.js`.
   com a carteira à esquerda.
 - Toda conversão com perda gera um aviso na tela.
 
-## Pontos a confirmar com a Vórtx
+## Definições confirmadas com a Vórtx
 
-1. Registro 2: o campo 002–321 aparece com tamanho 393 (na prática são 320), e as datas dos
-   descontos 2 e 3 têm 6 posições com conteúdo "DDMMAAAA". O conversor usa DDMMAA.
-2. CPF do pagador (221–234): brancos à esquerda num campo numérico, conforme o layout.
-3. Percentual de multa (067–070): assumido com 2 casas decimais (`0200` = 2%).
-4. O registro 1 não tem bairro, cidade ou UF do pagador.
-5. Conta de 8 dígitos: o layout prevê agência 5 + conta 7 em 025–036. O conversor usa agência 4 + conta 8
-   nas mesmas 12 posições, mantendo o registro com 17 posições no campo 021–037.
+- Registro 1, 021–037: agência com 5 posições e conta com 8, sem DV.
+- Registro 2: o campo 002–321 tem 320 posições (o PDF indica 393 por engano).
+- Datas no formato DDMMAA, inclusive as dos descontos 2 e 3.
+- Percentual de multa com 1 casa decimal.
+- CPF do pagador com zeros à esquerda.
+- Endereço: só rua e CEP (e cidade, se couber); apenas o CEP é obrigatório.
 
 Não são gerados os registros 3 (split) e 7 (sacador avalista com endereço).

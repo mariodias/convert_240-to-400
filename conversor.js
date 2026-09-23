@@ -81,41 +81,23 @@
     return dv >= 10 ? "0" : String(dv);
   }
 
-  // Conta do beneficiário. Aceita "12345678-9", "123456789" com dvConta
-  // separado, ou só os dígitos + dvConta. Contas de até 7 dígitos seguem o
-  // layout original (agência 5 + conta 7); contas Vórtx de 8 dígitos usam
-  // agência com 4 posições (025-028) e conta com 8 (029-036).
+  // Conta do beneficiário (registro 1, 025-036): agência com 5 posições e
+  // conta com 8, sem DV. Aceita "12345678" ou "12345678-9" (o DV é descartado).
   function contaBeneficiario(cfg) {
     const bruto = String(cfg.conta ?? "").replace(/[\s.]/g, "");
-    let numero, dv;
-    const m = /^(\d+)-([0-9Xx])$/.exec(bruto);
-    if (m) [numero, dv] = [m[1], m[2].toUpperCase()];
-    else if (/^\d+$/.test(bruto) && String(cfg.dvConta ?? "").trim() !== "")
-      [numero, dv] = [bruto, String(cfg.dvConta).trim().toUpperCase()];
-    else throw new ConversaoError(`conta '${cfg.conta}' inválida: informe no formato 12345678-9`);
-    if (!/^[0-9X]$/.test(dv)) throw new ConversaoError(`dígito da conta '${dv}' inválido`);
+    const m = /^(\d+)(?:-[0-9Xx])?$/.exec(bruto);
+    if (!m) throw new ConversaoError(`conta '${cfg.conta}' inválida: informe só os dígitos, sem o DV`);
+    const conta = m[1].replace(/^0+(?=\d)/, "");
+    if (conta.length > 8)
+      throw new ConversaoError(`conta '${m[1]}' tem ${conta.length} dígitos; informe a conta com até 8 dígitos, sem o DV`);
 
     const agencia = String(cfg.agencia ?? "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
     if (!agencia) throw new ConversaoError("agência obrigatória");
-    const conta = numero.replace(/^0+(?=\d)/, "");
 
-    if (conta.length <= 7) {
-      return { numero: conta, dv, campos: [
-        ["Agência do beneficiário", Fmt.num(agencia, 5, "agência")],
-        ["Conta corrente", Fmt.num(conta, 7, "conta")],
-        ["Dígito da conta", dv],
-      ] };
-    }
-    if (conta.length === 8) {
-      if (agencia.length > 4)
-        throw new ConversaoError(`agência '${agencia}' não cabe em 4 posições, exigidas para conta de 8 dígitos`);
-      return { numero: conta, dv, campos: [
-        ["Agência do beneficiário", Fmt.num(agencia, 4, "agência")],
-        ["Conta corrente", Fmt.num(conta, 8, "conta")],
-        ["Dígito da conta", dv],
-      ] };
-    }
-    throw new ConversaoError(`conta '${numero}' tem ${conta.length} dígitos; o máximo suportado é 8`);
+    return { numero: conta, campos: [
+      ["Agência do beneficiário", Fmt.num(agencia, 5, "agência")],
+      ["Conta corrente (sem DV)", Fmt.num(conta, 8, "conta")],
+    ] };
   }
 
   // ---------------------------------------------------------------- registros
@@ -213,10 +195,14 @@
       const codigo = f(t.r, 66, 66);
       const v = int(t.r, 75, 89);
       let res = ["0", 0];
-      if (codigo === "2") res = ["2", v];
-      else if (codigo === "1") {
-        const perc = valor === 0 ? 0 : Math.round((v * 10000) / valor);
-        aviso(`${ref}: multa em valor fixo convertida para percentual (${perc / 100}%)`);
+      // 240: percentual com 2 casas decimais; Vórtx: 1 casa (0020 = 2,0%)
+      if (codigo === "2") {
+        const perc = Math.round(v / 10);
+        if (v % 10) aviso(`${ref}: multa de ${v / 100}% arredondada para ${perc / 10}% (1 casa decimal)`);
+        res = ["2", perc];
+      } else if (codigo === "1") {
+        const perc = valor === 0 ? 0 : Math.round((v * 1000) / valor);
+        aviso(`${ref}: multa em valor fixo convertida para percentual (${perc / 10}%)`);
         res = ["2", perc];
       }
       if ((codigo === "1" || codigo === "2") && data8(t.r, 67, 74))
@@ -235,7 +221,7 @@
     function inscricaoPagador(q, ref) {
       const doc = f(q, 19, 33).replace(/\D/g, "");
       const tipo = f(q, 18, 18);
-      if (tipo === "1") return ["01", Fmt.branco(3) + doc.slice(-11).padStart(11, "0")];
+      if (tipo === "1") return ["01", doc.slice(-11).padStart(14, "0")];
       if (tipo === "2") return ["02", doc.slice(-14).padStart(14, "0")];
       throw new ConversaoError(`${ref}: tipo de inscrição do pagador obrigatório`);
     }
@@ -295,6 +281,11 @@
         especie = "99";
       }
       const [tipoInsc, insc] = inscricaoPagador(q, ref);
+      if (int(q, 129, 136) === 0) throw new ConversaoError(`${ref}: CEP do pagador obrigatório`);
+      const rua = f(q, 74, 113).trim();
+      const cidade = f(q, 137, 151).trim();
+      const comCidade = rua && cidade ? `${rua} - ${cidade}` : rua || cidade;
+      const endereco = comCidade.length <= 40 ? comCidade : rua;
       const sac = sacadorAvalista(q);
 
       registros.push([
@@ -330,7 +321,7 @@
         ["Tipo de inscrição do pagador", tipoInsc],
         ["Inscrição do pagador", insc],
         ["Nome do pagador", Fmt.alfa(f(q, 34, 73).trim(), 40)],
-        ["Endereço do pagador", Fmt.alfa(f(q, 74, 113).trim(), 40)],
+        ["Endereço do pagador", Fmt.alfa(endereco, 40)],
         ["Mensagem", Fmt.alfa(cfg.bairroNaMensagem ? f(q, 114, 128).trim() : "", 12)],
         ["CEP", Fmt.num(f(q, 129, 133), 5, "CEP")],
         ["Sufixo do CEP", Fmt.num(f(q, 134, 136), 3, "sufixo CEP")],
