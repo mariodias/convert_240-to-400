@@ -1,0 +1,6 @@
+# Arquivos CNAB têm CRLF fixo: o Git não deve converter as quebras de linha
+*.rem -text
+*.ret -text
+*.REM -text
+*.RET -text
+*.TXT -text

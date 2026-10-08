@@ -45,6 +45,7 @@
     --campo-hover: #2f5140;
   }
   *, *::before, *::after { box-sizing: inherit; }
+  [hidden] { display: none !important; }
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   body {
     margin: 0; background: var(--papel); color: var(--tinta);
@@ -145,7 +146,7 @@
 <body>
 <main>
   <h1>Conversor CNAB Vórtx</h1>
-  <p class="intro">Converte remessas CNAB240 (FEBRABAN) para o CNAB400 da Vórtx, banco 310, e retornos CNAB400 da Vórtx de volta para CNAB240. Os arquivos são processados no seu navegador e não são enviados para nenhum servidor.</p>
+  <p class="intro">Converte remessas CNAB240 do Bradesco (ou no padrão FEBRABAN genérico) para o CNAB400 da Vórtx, banco 310, e retornos CNAB400 da Vórtx de volta para o CNAB240 que o ERP já conhece. Os arquivos são processados no seu navegador e não são enviados para nenhum servidor.</p>
 
   <div class="abas" role="tablist" aria-label="Tipo de conversão">
     <button type="button" class="aba" role="tab" id="aba-remessa" aria-controls="form-remessa" aria-selected="true">Remessa <span class="seta">240 → 400</span></button>
@@ -157,6 +158,13 @@
       <form id="form-remessa" role="tabpanel" aria-labelledby="aba-remessa" novalidate>
         <fieldset>
           <legend>Arquivo de remessa CNAB240</legend>
+          <div class="campo">
+            <label for="rem-layout240">Layout do arquivo 240</label>
+            <select id="rem-layout240" name="layout240" data-layout>
+              <option value="bradesco">Bradesco (237)</option>
+              <option value="febraban">FEBRABAN genérico</option>
+            </select>
+          </div>
           <label class="soltar">
             <input type="file" data-arquivo accept=".rem,.txt,.240,text/plain">
             <strong>Escolha um arquivo</strong> ou arraste para cá
@@ -192,8 +200,8 @@
           <legend>Remessa</legend>
           <div class="campo">
             <label for="rem-sequencial">Número sequencial da remessa</label>
-            <input type="text" id="rem-sequencial" name="sequencial" inputmode="numeric" required>
-            <p class="ajuda">Nunca pode se repetir. Incremente a cada arquivo enviado.</p>
+            <input type="text" id="rem-sequencial" name="sequencial" inputmode="numeric" autocomplete="off">
+            <p class="ajuda">Nunca pode se repetir. Se ficar vazio, usa o número da remessa do header de lote do 240 (posições 184 a 191), que o ERP já incrementa a cada arquivo.</p>
           </div>
           <div class="campo">
             <label for="rem-nossoNumero">Nosso número nas entradas</label>
@@ -224,28 +232,60 @@
 
         <fieldset>
           <legend>Arquivo CNAB240 gerado</legend>
+          <div class="campo">
+            <label for="ret-layout240">Layout do arquivo 240</label>
+            <select id="ret-layout240" name="layout240" data-layout>
+              <option value="bradesco">Bradesco (237)</option>
+              <option value="febraban">FEBRABAN genérico</option>
+            </select>
+          </div>
           <div class="dupla campo">
             <div>
               <label for="ret-nomeBanco">Nome do banco</label>
-              <input type="text" id="ret-nomeBanco" name="nomeBanco" value="VORTX DTVM" required>
+              <input type="text" id="ret-nomeBanco" name="nomeBanco" value="BRADESCO" required>
             </div>
             <div>
               <label for="ret-banco">Código</label>
-              <input type="text" id="ret-banco" name="banco" inputmode="numeric" value="310" required>
+              <input type="text" id="ret-banco" name="banco" inputmode="numeric" value="237" required>
+            </div>
+          </div>
+          <div class="campo" data-perfil="bradesco">
+            <label for="ret-carteira240">Carteira Bradesco</label>
+            <input type="text" id="ret-carteira240" name="carteira240" inputmode="numeric" autocomplete="off" placeholder="009">
+            <p class="ajuda">A mesma das posições 038 a 040 da remessa. Com ela o nosso número volta com o DV que o ERP calculou.</p>
+          </div>
+          <div class="campo">
+            <label class="check" data-perfil="febraban"><input type="checkbox" id="ret-nossoNumeroComDv" name="nossoNumeroComDv" checked> Incluir o DV no nosso número</label>
+            <p class="ajuda" data-perfil="febraban">Desmarque se o ERP guarda o nosso número sem o dígito.</p>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Conta como o ERP conhece</legend>
+          <p class="ajuda">Preencha com os dados do header da remessa 240. Se ficar vazio, vai a agência e a conta da Vórtx, que o ERP pode recusar.</p>
+          <div class="dupla campo">
+            <div>
+              <label for="ret-agencia240">Agência</label>
+              <input type="text" id="ret-agencia240" name="agencia240" inputmode="numeric" autocomplete="off">
+            </div>
+            <div>
+              <label for="ret-dvAgencia">DV</label>
+              <input type="text" id="ret-dvAgencia" name="dvAgencia" maxlength="1" autocomplete="off">
+            </div>
+          </div>
+          <div class="dupla campo">
+            <div>
+              <label for="ret-conta240">Conta</label>
+              <input type="text" id="ret-conta240" name="conta240" inputmode="numeric" autocomplete="off">
+            </div>
+            <div>
+              <label for="ret-dvConta">DV</label>
+              <input type="text" id="ret-dvConta" name="dvConta" maxlength="1" autocomplete="off">
             </div>
           </div>
           <div class="campo">
-            <label for="ret-dvConta">Dígito da conta (opcional)</label>
-            <input type="text" id="ret-dvConta" name="dvConta" maxlength="1" autocomplete="off">
-            <p class="ajuda">O retorno da Vórtx traz a conta sem o dígito. Preencha se o ERP exigir.</p>
-          </div>
-          <div class="campo">
             <label for="ret-convenio">Código do convênio (opcional)</label>
-            <input type="text" id="ret-convenio" name="convenio" autocomplete="off">
-          </div>
-          <div class="campo">
-            <label class="check"><input type="checkbox" id="ret-nossoNumeroComDv" name="nossoNumeroComDv" checked> Incluir o DV no nosso número</label>
-            <p class="ajuda">Desmarque se o ERP guarda o nosso número sem o dígito.</p>
+            <input type="text" id="ret-convenio" name="convenio" inputmode="numeric" autocomplete="off">
           </div>
         </fieldset>
 
@@ -267,7 +307,7 @@
   </section>
 
   <footer>
-    <p>Layouts de referência: Grafeno Vórtx CNAB 400 Remessa v1.1 e Retorno v1.0; FEBRABAN CNAB 240 cobrança (segmentos P, Q e R na remessa; T e U no retorno).</p>
+    <p>Layouts de referência: Grafeno Vórtx CNAB 400 Remessa v1.1 e Retorno v1.0; Bradesco CNAB 240 cobrança, versão 04 (dezembro de 2024); FEBRABAN CNAB 240 cobrança (segmentos P, Q e R na remessa; T e U no retorno).</p>
   </footer>
 </main>
 
@@ -286,13 +326,17 @@
       form: $("form-remessa"),
       aba: $("aba-remessa"),
       chave: "vortx400-config",
-      obrigatorios: ["conta", "agencia", "carteira", "sequencial"],
-      exemplo: "99900000         200000000000000                                        EMPRESA TESTE CNAB LTDA       BANCO ORIGEM TESTE                      122092026100000000001107                                                                          \r\n99900011R01  060                                                         EMPRESA TESTE CNAB LTDA                                                                                                                                                \r\n9990001300001P 010000100000009999999 0000000000000000010111122TESTE-0001     3010202600000000015000000000002N22092026200000000000000000000100120102026000000000001000000000000000000000000000000000CTRL-TESTE-0001          3000000090000000000 \r\n9990001300002Q 011000000000000191PAGADOR TESTE UM                        RUA TESTE 100                           BAIRRO TESTE   01000000CIDADE TESTE   SP2000000000000000AVALISTA TESTE SA                       00000000000000000000000        \r\n9990001300003R 01225102026000000000000500000000000000000000000000231102026000000000000200          MENSAGEM DE TESTE NO BOLETO                                                                                                                  \r\n9990001300004P 010000100000009999999 0000000000000000010211122TESTE-0002     1511202600000000008999000000023N22092026100000000000000000000030000000000000000000000000000000000000000000000000000000CTRL-TESTE-0002          3000000090000000000 \r\n9990001300005Q 012000000000000000PAGADOR TESTE DOIS LTDA                 AVENIDA TESTE 2000                      BAIRRO TESTE   02000000CIDADE TESTE   RJ1000000000000000AVALISTA TESTE PF                       00000000000000000000000        \r\n9990001300006R 01000000000000000000000000000000000000000000000000116112026000000000001800                                                                                                                                                       \r\n9990001300007P 010000100000009999999 0000000000000000010311122TESTE-0003     0512202600000000002500000000004N22092026300000000000000000000000201122026000000000001000000000000000000000000000000000CTRL-TESTE-0003          3000000090000000000 \r\n9990001300008Q 011000000000000272PAGADOR TESTE TRES                      TRAVESSA TESTE 3                        BAIRRO TESTE   03000000CIDADE TESTE   MG0000000000000000                                        00000000000000000000000        \r\n9990001300009P 020000100000009999999 0000000000000000009011122TESTE-0090     3009202600000000001000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0090          3000000090000000000 \r\n9990001300010Q 021000000000000353PAGADOR TESTE QUATRO                    RUA TESTE 4                             BAIRRO TESTE   04000000CIDADE TESTE   PR0000000000000000                                        00000000000000000000000        \r\n9990001300011P 060000100000009999999 0000000000000000009111122TESTE-0091     3112202600000000002000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0091          3000000090000000000 \r\n9990001300012Q 061000000000000434PAGADOR TESTE CINCO                     RUA TESTE 5                             BAIRRO TESTE   05000000CIDADE TESTE   RS0000000000000000                                        00000000000000000000000        \r\n99900015         000014                                                                                                                                                                                                                         \r\n99999999         000001000016                                                                                                                                                                                                                   \r\n",
-      nomeExemplo: "entrada.rem (exemplo)",
+      obrigatorios: () => ["conta", "agencia", "carteira"],
+      exemplos: {
+        bradesco: "23700000         200000000000191000000000000012345670123450000000567890 EMPRESA TESTE BRADESCO LTDA   BRADESCO                                10110202609300000000108406250                                                                     \r\n23700011R01  042 2000000000000191000000000000012345670123450000000567890 EMPRESA TESTE BRADESCO LTDA                                                                                   000000420110202600000000                                 \r\n2370001300001P 010123450000000567890 0090000000000001001711222000000001001   3010202600000000015000000000 02N01102026131102026000000000000050000000000000000000000000000000000000000000000000000000CTRL-BRAD-0001           3001059090000000000 \r\n2370001300002Q 012000000000000191PAGADOR TESTE UM LTDA                   RUA TESTE 100                           BAIRRO TESTE   01000000CIDADE TESTE   SP0000000000000000                                        000                            \r\n2370001300003R 01000000000000000000000000000000000000000000000000231102026000000000000200                                                                                                              0000000000000000 000000000000  0         \r\n2370001300004P 010123450000000567890 0090000000000000002P11222NF-2002        1511202600000000008999000000 17N01102026216112026000000000000100000000000000000000000000000000000000000000000000000000CTRL-BRAD-0002           3001059090000000000 \r\n2370001300005Q 011000000000000191PAGADOR TESTE DOIS                      AVENIDA TESTE 2000                      BAIRRO TESTE   02000000CIDADE TESTE   SP0000000000000000                                        000                            \r\n2370001300006R 01110112026000000000001000000000000000000000000000000000000000000000000000          MENSAGEM DE TESTE BRADESCO                                                                          0000000000000000 000000000000  0         \r\n2370001300007P 010123450000000567890 00900000000000000000112223003           0512202600000000002500000000 04N01102026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-BRAD-0003           3001059090000000000 \r\n2370001300008Q 011000000000000272PAGADOR TESTE TRES                      TRAVESSA TESTE 3                        BAIRRO TESTE   03000000CIDADE TESTE   SP0000000000000000                                        000                            \r\n2370001300009P 020123450000000567890 0090000000000001003311222000000001003   3009202600000000001000000000 02N01092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-BRAD-0004           3001059090000000000 \r\n23700015         000011                                                                                                                                                                                                                         \r\n23799999         000001000013000000                                                                                                                                                                                                             \r\n",
+        febraban: "99900000         200000000000000                                        EMPRESA TESTE CNAB LTDA       BANCO ORIGEM TESTE                      122092026100000000001107                                                                          \r\n99900011R01  060                                                         EMPRESA TESTE CNAB LTDA                                                                                                                                                \r\n9990001300001P 010000100000009999999 0000000000000000010111122TESTE-0001     3010202600000000015000000000002N22092026200000000000000000000100120102026000000000001000000000000000000000000000000000CTRL-TESTE-0001          3000000090000000000 \r\n9990001300002Q 011000000000000191PAGADOR TESTE UM                        RUA TESTE 100                           BAIRRO TESTE   01000000CIDADE TESTE   SP2000000000000000AVALISTA TESTE SA                       00000000000000000000000        \r\n9990001300003R 01225102026000000000000500000000000000000000000000231102026000000000000200          MENSAGEM DE TESTE NO BOLETO                                                                                                                  \r\n9990001300004P 010000100000009999999 0000000000000000010211122TESTE-0002     1511202600000000008999000000023N22092026100000000000000000000030000000000000000000000000000000000000000000000000000000CTRL-TESTE-0002          3000000090000000000 \r\n9990001300005Q 012000000000000000PAGADOR TESTE DOIS LTDA                 AVENIDA TESTE 2000                      BAIRRO TESTE   02000000CIDADE TESTE   RJ1000000000000000AVALISTA TESTE PF                       00000000000000000000000        \r\n9990001300006R 01000000000000000000000000000000000000000000000000116112026000000000001800                                                                                                                                                       \r\n9990001300007P 010000100000009999999 0000000000000000010311122TESTE-0003     0512202600000000002500000000004N22092026300000000000000000000000201122026000000000001000000000000000000000000000000000CTRL-TESTE-0003          3000000090000000000 \r\n9990001300008Q 011000000000000272PAGADOR TESTE TRES                      TRAVESSA TESTE 3                        BAIRRO TESTE   03000000CIDADE TESTE   MG0000000000000000                                        00000000000000000000000        \r\n9990001300009P 020000100000009999999 0000000000000000009011122TESTE-0090     3009202600000000001000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0090          3000000090000000000 \r\n9990001300010Q 021000000000000353PAGADOR TESTE QUATRO                    RUA TESTE 4                             BAIRRO TESTE   04000000CIDADE TESTE   PR0000000000000000                                        00000000000000000000000        \r\n9990001300011P 060000100000009999999 0000000000000000009111122TESTE-0091     3112202600000000002000000000002N22092026300000000000000000000000000000000000000000000000000000000000000000000000000000CTRL-TESTE-0091          3000000090000000000 \r\n9990001300012Q 061000000000000434PAGADOR TESTE CINCO                     RUA TESTE 5                             BAIRRO TESTE   05000000CIDADE TESTE   RS0000000000000000                                        00000000000000000000000        \r\n99900015         000014                                                                                                                                                                                                                         \r\n99999999         000001000016                                                                                                                                                                                                                   \r\n",
+      },
+      nomesExemplo: { bradesco: "entrada_bradesco.rem (exemplo)", febraban: "entrada.rem (exemplo)" },
       preencherExemplo(form) {
         if (!form.conta.value.trim()) {
           form.conta.value = "12345678"; form.agencia.value = "1";
-          form.carteira.value = form.carteira.value || "21"; form.sequencial.value = "1";
+          form.carteira.value = form.carteira.value || "21";
+          if (form.layout240.value === "febraban") form.sequencial.value = "1";
         }
       },
       converter: (texto, cfg) => Vortx400.converter(texto, cfg),
@@ -303,10 +347,18 @@
       form: $("form-retorno"),
       aba: $("aba-retorno"),
       chave: "vortx400-retorno-config",
-      obrigatorios: ["banco", "nomeBanco"],
-      exemplo: "02RETORNO01COBRANCA       00000000000012345678EMPRESA TESTE CNAB LTDA       310VORTX DTVM     230926        00042                                                                                                                                                                                                                                                                          230926         000001\r\n10200000000000000   00210000112345678CTRL-TESTE-0001                  0000000010150000000000             00002230926TESTE-0001                    301026000000015000000000000  000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000002\r\n10200000000000000   00210000112345678CTRL-TESTE-0002                  0000000010230000000000             00006161126TESTE-0002                    151126000000008999034101234  000000000000000000000000000000000000000000000000000000000000000000000000000000000000009179000000000018000000000000000   171126006              0000000000                                                                  000003\r\n10200000000000000   00210000112345678CTRL-TESTE-0003                  0000000000000000000000             00003230926TESTE-0003                    051226000000002500000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              4847000000                                                                  000004\r\n10200000000000000   00210000112345678CTRL-TESTE-0090                  0000000009060000000000             00009230926TESTE-0090                    300926000000001000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              1000000000                                                                  000005\r\n10200000000000000   00210000112345678CTRL-TESTE-0091                  0000000009140000000000             00014230926TESTE-0091                    311226000000002000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000006\r\n10200000000000000   00210000112345678CTRL-TESTE-0004                  0000000010310000000000             00015230926TESTE-0004                    101026000000003000000000000  000000000000000000000000000000000000000000000000000000000000000000000000001000000000002900000000000000000000000000000   240926006              0000000000                                                                  000007\r\n10200000000000000   00210000112345678CTRL-TESTE-0005                  0000000010400000000000             00019230926TESTE-0005                    011026000000004000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000  D000000006              0000000000                                                                  000008\r\n10200000000000000   00210000112345678CTRL-TESTE-0006                  0000000010580000000000             00094230926TESTE-0006                    201226000000005000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000009\r\n3021000011234567800000000101511                                                                                                                                                                                                                                                                                                                                                                           000010\r\n9201310          0000000800000000414990                                                                                                                                                                                                                                                                                                                                                                   000011\r\n",
-      nomeExemplo: "retorno_vortx400.ret (exemplo)",
-      preencherExemplo() {},
+      obrigatorios: (c) => ["banco", "nomeBanco", ...(c.layout240 === "bradesco" ? ["carteira240"] : [])],
+      exemplos: { bradesco: "02RETORNO01COBRANCA       00000000000012345678EMPRESA TESTE CNAB LTDA       310VORTX DTVM     230926        00042                                                                                                                                                                                                                                                                          230926         000001\r\n10200000000000000   00210000112345678CTRL-TESTE-0001                  0000000010150000000000             00002230926TESTE-0001                    301026000000015000000000000  000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000002\r\n10200000000000000   00210000112345678CTRL-TESTE-0002                  0000000010230000000000             00006161126TESTE-0002                    151126000000008999034101234  000000000000000000000000000000000000000000000000000000000000000000000000000000000000009179000000000018000000000000000   171126006              0000000000                                                                  000003\r\n10200000000000000   00210000112345678CTRL-TESTE-0003                  0000000000000000000000             00003230926TESTE-0003                    051226000000002500000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              4847000000                                                                  000004\r\n10200000000000000   00210000112345678CTRL-TESTE-0090                  0000000009060000000000             00009230926TESTE-0090                    300926000000001000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              1000000000                                                                  000005\r\n10200000000000000   00210000112345678CTRL-TESTE-0091                  0000000009140000000000             00014230926TESTE-0091                    311226000000002000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000006\r\n10200000000000000   00210000112345678CTRL-TESTE-0004                  0000000010310000000000             00015230926TESTE-0004                    101026000000003000000000000  000000000000000000000000000000000000000000000000000000000000000000000000001000000000002900000000000000000000000000000   240926006              0000000000                                                                  000007\r\n10200000000000000   00210000112345678CTRL-TESTE-0005                  0000000010400000000000             00019230926TESTE-0005                    011026000000004000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000  D000000006              0000000000                                                                  000008\r\n10200000000000000   00210000112345678CTRL-TESTE-0006                  0000000010580000000000             00094230926TESTE-0006                    201226000000005000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000009\r\n3021000011234567800000000101511                                                                                                                                                                                                                                                                                                                                                                           000010\r\n9201310          0000000800000000414990                                                                                                                                                                                                                                                                                                                                                                   000011\r\n", febraban: "02RETORNO01COBRANCA       00000000000012345678EMPRESA TESTE CNAB LTDA       310VORTX DTVM     230926        00042                                                                                                                                                                                                                                                                          230926         000001\r\n10200000000000000   00210000112345678CTRL-TESTE-0001                  0000000010150000000000             00002230926TESTE-0001                    301026000000015000000000000  000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000002\r\n10200000000000000   00210000112345678CTRL-TESTE-0002                  0000000010230000000000             00006161126TESTE-0002                    151126000000008999034101234  000000000000000000000000000000000000000000000000000000000000000000000000000000000000009179000000000018000000000000000   171126006              0000000000                                                                  000003\r\n10200000000000000   00210000112345678CTRL-TESTE-0003                  0000000000000000000000             00003230926TESTE-0003                    051226000000002500000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              4847000000                                                                  000004\r\n10200000000000000   00210000112345678CTRL-TESTE-0090                  0000000009060000000000             00009230926TESTE-0090                    300926000000001000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              1000000000                                                                  000005\r\n10200000000000000   00210000112345678CTRL-TESTE-0091                  0000000009140000000000             00014230926TESTE-0091                    311226000000002000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000006\r\n10200000000000000   00210000112345678CTRL-TESTE-0004                  0000000010310000000000             00015230926TESTE-0004                    101026000000003000000000000  000000000000000000000000000000000000000000000000000000000000000000000000001000000000002900000000000000000000000000000   240926006              0000000000                                                                  000007\r\n10200000000000000   00210000112345678CTRL-TESTE-0005                  0000000010400000000000             00019230926TESTE-0005                    011026000000004000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000  D000000006              0000000000                                                                  000008\r\n10200000000000000   00210000112345678CTRL-TESTE-0006                  0000000010580000000000             00094230926TESTE-0006                    201226000000005000000000000  000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000   000000006              0000000000                                                                  000009\r\n3021000011234567800000000101511                                                                                                                                                                                                                                                                                                                                                                           000010\r\n9201310          0000000800000000414990                                                                                                                                                                                                                                                                                                                                                                   000011\r\n" },
+      nomesExemplo: { bradesco: "retorno_vortx400.ret (exemplo)", febraban: "retorno_vortx400.ret (exemplo)" },
+      preencherExemplo(form) {
+        if (form.layout240.value === "bradesco" && !form.carteira240.value.trim()) form.carteira240.value = "009";
+      },
+      // Ao trocar o layout, banco e nome do banco vão para o padrão do perfil
+      aoTrocarLayout(form) {
+        const p = Vortx400.perfis[form.layout240.value];
+        form.banco.value = p.banco;
+        form.nomeBanco.value = p.nomeBanco;
+      },
       converter: (texto, cfg) => Vortx400.converterRetorno(texto, cfg),
       vazio: "Escolha um arquivo de retorno CNAB400 da Vórtx para gerar o retorno CNAB240.",
       tipos: { "0": "header de arquivo", "1": "header de lote", "T": "segmento T", "U": "segmento U", "5": "trailer de lote", "9": "trailer de arquivo" },
@@ -353,9 +405,13 @@
       }
     } catch (e) {}
 
+    const mostrarPerfil = () => {
+      const layout = form.layout240.value;
+      form.querySelectorAll("[data-perfil]").forEach((el) => { el.hidden = el.dataset.perfil !== layout; });
+    };
     const atualizar = () => {
       const c = lerConfig(form);
-      botao.disabled = !m.entrada || m.obrigatorios.some((k) => !c[k]);
+      botao.disabled = !m.entrada || m.obrigatorios(c).some((k) => !c[k]);
     };
     const carregar = (texto, nomeArq) => {
       m.entrada = texto;
@@ -372,7 +428,13 @@
 
     form.querySelector("[data-exemplo]").addEventListener("click", () => {
       m.preencherExemplo(form);
-      carregar(m.exemplo, m.nomeExemplo);
+      const layout = form.layout240.value;
+      carregar(m.exemplos[layout], m.nomesExemplo[layout]);
+    });
+    form.layout240.addEventListener("change", () => {
+      if (m.aoTrocarLayout) m.aoTrocarLayout(form);
+      mostrarPerfil();
+      atualizar();
     });
     form.addEventListener("input", atualizar);
     form.addEventListener("submit", (e) => {
@@ -390,6 +452,7 @@
       }
     });
     m.aba.addEventListener("click", () => ativar(nome));
+    mostrarPerfil();
     atualizar();
   });
 

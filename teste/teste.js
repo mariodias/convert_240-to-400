@@ -73,3 +73,49 @@ assert.strictEqual(ret.avisos.length, 3);
 assert.throws(() => converterRetorno(res.conteudo, {}), /não é de retorno/);
 
 console.log(`retorno ok: ${ret.registros.length} registros, ${ret.avisos.length} avisos`);
+
+// ================================================================ BRADESCO
+const { dvNossoNumeroBradesco } = require("../conversor.js");
+// exemplos do manual Bradesco (carteira 19)
+assert.strictEqual(dvNossoNumeroBradesco("19", "00000000002"), "8");
+assert.strictEqual(dvNossoNumeroBradesco("19", "00000000001"), "P");
+assert.strictEqual(dvNossoNumeroBradesco("19", "00000000006"), "0");
+
+const cfgB = { layout240: "bradesco", carteira: "21", agencia: "1", conta: "12345678" };
+const entradaB = decodificar(fs.readFileSync(path.join(__dirname, "entrada_bradesco.rem")));
+const resB = converter(entradaB, cfgB);
+assert.strictEqual(resB.conteudo, fs.readFileSync(path.join(__dirname, "saida_esperada_bradesco.rem"), "latin1"), "remessa Bradesco diferente do esperado");
+assert.strictEqual(resB.sequencial, "42", "sequencial vem do header de lote quando não informado");
+assert.strictEqual(converter(entradaB, { ...cfgB, sequencial: "7" }).sequencial, "7");
+const regB = resB.registros.filter((r) => r.tipo === "1").map((r) => r.linha);
+// nosso número Bradesco (046-056) vai direto, com DV Vórtx da carteira 21
+assert.strictEqual(campo(regB[0], 71, 82), "000000010014");
+assert.strictEqual(campo(regB[1], 71, 82), "000000000027", "DV 'P' do Bradesco não passa para o 400");
+assert.strictEqual(campo(regB[2], 71, 82), "000000000000", "nosso número zerado: Grafeno gera");
+// seu número numérico longo perde os zeros à esquerda
+assert.strictEqual(campo(regB[0], 111, 120), "1001      ");
+// baixa sem segmento Q
+assert.strictEqual(campo(regB[3], 109, 110), "02");
+assert.ok(resB.avisos.some((a) => /sem segmento Q/.test(a)));
+// DV do 240 errado gera aviso
+const dvErrado = entradaB.replace("00900000000000010017", "00900000000000010019");
+assert.ok(converter(dvErrado, cfgB).avisos.some((a) => /DV do nosso número no 240/.test(a)));
+// arquivo Bradesco lido como FEBRABAN genérico: o nosso número não cabe
+assert.throws(() => converter(entradaB, { ...cfgB, layout240: "febraban" }), /excede 11 dígitos/);
+console.log(`remessa Bradesco ok: ${resB.registros.length} registros, ${resB.avisos.length} avisos`);
+
+const cfgRetB = { layout240: "bradesco", carteira240: "09", agencia240: "01234", dvAgencia: "5", conta240: "56789", dvConta: "0", convenio: "1234567" };
+const retB = converterRetorno(ret400, cfgRetB);
+assert.strictEqual(retB.conteudo, fs.readFileSync(path.join(__dirname, "retorno_esperado_bradesco.ret"), "latin1"), "retorno Bradesco diferente do esperado");
+assert.strictEqual(retB.nomeArquivo, "CB230942.RET");
+const hB = retB.registros[0].linha;
+assert.strictEqual(campo(hB, 1, 3), "237");
+assert.strictEqual(campo(hB, 33, 72), "000000000000012345670123450000000567890 ", "convênio numérico e conta do ERP");
+assert.strictEqual(campo(hB, 164, 171), "08406250");
+assert.strictEqual(campo(retB.registros[1].linha, 14, 16), "042");
+const TB = retB.registros.filter((r) => r.tipo === "T").map((r) => r.linha);
+// T 038-057: carteira (3) + zeros (5) + nosso número (11) + DV Bradesco
+assert.strictEqual(campo(TB[0], 38, 57), "00900000000000001018");
+assert.strictEqual(campo(TB[0], 38, 57).slice(-1), dvNossoNumeroBradesco("09", "00000000101"));
+assert.throws(() => converterRetorno(ret400, { layout240: "bradesco" }), /carteira Bradesco/);
+console.log(`retorno Bradesco ok: ${retB.registros.length} registros, ${retB.avisos.length} avisos`);

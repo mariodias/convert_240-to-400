@@ -1,7 +1,9 @@
 /*
- * Conversor de remessa CNAB240 (FEBRABAN, segmentos P/Q/R) para
- * CNAB400 Vórtx (banco 310), layout "Remessa v1.1-oficial".
- * Funciona no navegador (window.Vortx400) e no Node (require).
+ * Conversor CNAB Vórtx (banco 310), nos dois sentidos:
+ *   remessa CNAB240 (segmentos P/Q/R) -> CNAB400 Vórtx "Remessa v1.1-oficial"
+ *   retorno CNAB400 Vórtx "Retorno v1.0" -> CNAB240 (segmentos T/U)
+ * O lado 240 segue um perfil de layout: "bradesco" (237, layout 084/042) ou
+ * "febraban" (genérico). Funciona no navegador (window.Vortx400) e no Node.
  */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory();
@@ -81,6 +83,79 @@
     return dv >= 10 ? "0" : String(dv);
   }
 
+  // DV Bradesco: módulo 11 base 7 com a carteira (2 dígitos) à esquerda;
+  // resto 0 => "0", resto 1 => "P". Difere do DV Vórtx só no caso do "P".
+  function dvNossoNumeroBradesco(carteira, nn) {
+    const base = String(carteira).replace(/\D/g, "").padStart(2, "0").slice(-2) + String(nn).padStart(11, "0");
+    let soma = 0;
+    [...base].reverse().forEach((d, i) => (soma += +d * (2 + (i % 6))));
+    const resto = soma % 11;
+    return resto === 0 ? "0" : resto === 1 ? "P" : String(11 - resto);
+  }
+
+  // ------------------------------------------------------- perfis do 240
+  // Tudo o que muda entre bancos no lado 240 fica aqui.
+  const PERFIS = {
+    bradesco: {
+      nome: "Bradesco (237)",
+      banco: "237",
+      nomeBanco: "BRADESCO",
+      versaoArquivo: "084",
+      versaoLote: "042",
+      densidade: "06250",
+      convenioNumerico: true,
+      // G069: produto/carteira (038-040), zeros (041-045), nosso número (046-056), DV (057)
+      lerNossoNumero(p, aviso, ref) {
+        const carteira = f(p, 38, 40);
+        const nn = f(p, 46, 56);
+        const dv = f(p, 57, 57);
+        if (!/^\d{11}$/.test(nn)) throw new ConversaoError(`${ref}: nosso número Bradesco '${nn.trim()}' (046-056) não é numérico`);
+        if (/^0+$/.test(nn)) return nn;
+        const esperado = dvNossoNumeroBradesco(carteira, nn);
+        if (dv !== esperado)
+          aviso(`${ref}: DV do nosso número no 240 é '${dv}', mas carteira ${carteira} + ${nn} dá '${esperado}'`);
+        return nn;
+      },
+      // T 038-057: carteira (3) + zeros (5) + nosso número (11) + DV Bradesco
+      montarNossoNumero(nn, cfg) {
+        return Fmt.num(cfg.carteira240, 3, "carteira Bradesco") + "00000" + nn + dvNossoNumeroBradesco(cfg.carteira240, nn);
+      },
+      nomeRetorno: (data8, aviso) => `CB${data8.slice(0, 4)}${aviso.slice(-2).padStart(2, "0")}.RET`,
+    },
+    febraban: {
+      nome: "FEBRABAN genérico",
+      banco: "310",
+      nomeBanco: "VORTX DTVM",
+      versaoArquivo: "107",
+      versaoLote: "060",
+      densidade: "00000",
+      convenioNumerico: false,
+      // 038-057 inteiro, sem não-dígitos e sem zeros à esquerda
+      lerNossoNumero(p) {
+        return f(p, 38, 57).replace(/\D/g, "").replace(/^0+/, "");
+      },
+      montarNossoNumero(nn, cfg, dvVortx) {
+        return Fmt.num(cfg.nossoNumeroComDv ? nn + dvVortx : nn, 20, "nosso número");
+      },
+      nomeRetorno: (data8, aviso) => `RET240_${data8}_${aviso.padStart(5, "0")}.ret`,
+    },
+  };
+
+  function perfil(nome) {
+    const p = PERFIS[nome || "febraban"];
+    if (!p) throw new ConversaoError(`layout 240 desconhecido: ${nome}`);
+    return p;
+  }
+
+  // Seu número tem 10 posições no 400. Números longos perdem os zeros à
+  // esquerda antes de qualquer truncamento (Bradesco usa 15 posições).
+  function seuNumero400(valor, aviso, ref) {
+    let s = valor.trim();
+    if (s.length > 10 && /^\d+$/.test(s)) s = s.replace(/^0+(?=\d)/, "");
+    if (s.length > 10) aviso(`${ref}: seu número '${s}' truncado para 10 posições`);
+    return s.slice(0, 10);
+  }
+
   // Conta do beneficiário (registro 1, 025-036): agência com 5 posições e
   // conta com 8, sem DV. Aceita "12345678" ou "12345678-9" (o DV é descartado).
   function contaBeneficiario(cfg) {
@@ -118,13 +193,14 @@
   function converter(texto, configEntrada) {
     const cfg = Object.assign(
       {
+        layout240: "febraban",
         nossoNumero: "manter",
         bairroNaMensagem: false,
-        extrairNossoNumero: (campo) => campo.replace(/\D/g, "").replace(/^0+/, ""),
       },
       configEntrada
     );
-    for (const k of ["carteira", "agencia", "conta", "sequencial"]) {
+    const origem = perfil(cfg.layout240);
+    for (const k of ["carteira", "agencia", "conta"]) {
       if (cfg[k] === undefined || cfg[k] === null || String(cfg[k]).trim() === "")
         throw new ConversaoError(`configuração obrigatória ausente: ${k}`);
     }
@@ -136,6 +212,7 @@
 
     // --- agrupamento P+Q(+R)
     let header = null;
+    let headerLote = null;
     const titulos = [];
     let atual = null;
     linhasDe(texto).forEach((original, i) => {
@@ -149,6 +226,8 @@
       if (tipo === "0") {
         if (f(l, 143, 143) !== "1") throw new ConversaoError(`linha ${n}: header não é de remessa`);
         header = l;
+      } else if (tipo === "1") {
+        if (!headerLote) headerLote = l;
       } else if (tipo === "3") {
         const seg = f(l, 14, 14);
         if (seg === "P") titulos.push((atual = { p: l, linhaP: n }));
@@ -161,18 +240,35 @@
       }
     });
     if (!header) throw new ConversaoError("header de arquivo (tipo 0) não encontrado");
+    const bancoArquivo = f(header, 1, 3);
+    if (cfg.layout240 === "bradesco" && bancoArquivo !== "237")
+      aviso(`arquivo do banco ${bancoArquivo} lido com o layout Bradesco: confira as posições do nosso número`);
+    else if (cfg.layout240 !== "bradesco" && bancoArquivo === "237")
+      aviso("arquivo do Bradesco (237) lido com o layout FEBRABAN genérico: escolha o layout Bradesco");
+
+    // Sequencial: o informado; se vazio, o número da remessa do header de lote (184-191)
+    let sequencial = String(cfg.sequencial ?? "").trim();
+    if (!sequencial) {
+      const doLote = headerLote ? int(headerLote, 184, 191) : 0;
+      if (!doLote) throw new ConversaoError("informe o número sequencial da remessa (o header de lote do 240 não traz um)");
+      sequencial = String(doLote);
+      aviso(`sequencial da remessa ${doLote}, lido do header de lote do 240`);
+    }
+    // Q é obrigatório na entrada; em instruções (baixa, alteração etc.) é opcional
     titulos.forEach((t) => {
-      if (!t.q) throw new ConversaoError(`título da linha ${t.linhaP} sem segmento Q`);
+      if (!t.q && f(t.p, 16, 17) === "01") throw new ConversaoError(`título da linha ${t.linhaP} sem segmento Q`);
     });
 
     // --- regras de campo
     function nossoNumero(p, ocorrencia, ref) {
       if (cfg.nossoNumero === "grafeno" && ocorrencia === "01") return "0".repeat(11);
-      let nn = String(cfg.extrairNossoNumero(f(p, 38, 57)));
+      let nn = cfg.extrairNossoNumero ? cfg.extrairNossoNumero(f(p, 38, 57)) : origem.lerNossoNumero(p, aviso, ref);
+      nn = String(nn).replace(/^0+(?=\d)/, "");
       if (nn.length > 11) throw new ConversaoError(`${ref}: nosso número '${nn}' excede 11 dígitos`);
       nn = nn.padStart(11, "0");
       if (Number(nn) > 90000000000 && ocorrencia === "01")
         throw new ConversaoError(`${ref}: nosso número ${nn} está na faixa reservada à Grafeno`);
+      if (Number(nn) === 0 && ocorrencia === "01") aviso(`${ref}: nosso número zerado no 240; a Grafeno vai gerar`);
       return nn;
     }
 
@@ -256,12 +352,12 @@
       ["Data de gravação", Fmt.data6(dataArquivo)],
       ["Não utilizado", Fmt.branco(8)],
       ["Identificação do sistema", "MX"],
-      ["Sequencial de remessa", Fmt.num(cfg.sequencial, 7, "sequencial remessa")],
+      ["Sequencial de remessa", Fmt.num(sequencial, 7, "sequencial remessa")],
       ["Não utilizado", Fmt.branco(277)],
     ]);
 
     for (const t of titulos) {
-      const { p, q } = t;
+      const { p, q } = t; // q pode faltar em instruções
       const ref = `título linha ${t.linhaP}`;
       const valor = int(p, 86, 100);
       const ocorrencia = OCORRENCIAS[f(p, 16, 17)];
@@ -272,21 +368,29 @@
       const [multaFlag, multaPerc] = multa(t, valor, ref);
       const [descData, descValor] = desconto(f(p, 142, 142), data8(p, 143, 150), int(p, 151, 165), valor, "desconto 1", ref);
 
-      const seuNumero = f(p, 63, 77).trim();
-      if (seuNumero.length > 10) aviso(`${ref}: seu número '${seuNumero}' truncado para 10 posições`);
+      const seuNumero = seuNumero400(f(p, 63, 77), aviso, ref);
 
       let especie = ESPECIES[f(p, 107, 108)];
       if (!especie) {
         aviso(`${ref}: espécie ${f(p, 107, 108)} mapeada para 99 (Outros)`);
         especie = "99";
       }
-      const [tipoInsc, insc] = inscricaoPagador(q, ref);
-      if (int(q, 129, 136) === 0) throw new ConversaoError(`${ref}: CEP do pagador obrigatório`);
-      const rua = f(q, 74, 113).trim();
-      const cidade = f(q, 137, 151).trim();
-      const comCidade = rua && cidade ? `${rua} - ${cidade}` : rua || cidade;
-      const endereco = comCidade.length <= 40 ? comCidade : rua;
-      const sac = sacadorAvalista(q);
+      let tipoInsc = "00", insc = "0".repeat(14), nomePagador = "", endereco = "", bairro = "", cep = "00000000";
+      let sac = Fmt.branco(60);
+      if (q) {
+        [tipoInsc, insc] = inscricaoPagador(q, ref);
+        if (int(q, 129, 136) === 0) throw new ConversaoError(`${ref}: CEP do pagador obrigatório`);
+        const rua = f(q, 74, 113).trim();
+        const cidade = f(q, 137, 151).trim();
+        const comCidade = rua && cidade ? `${rua} - ${cidade}` : rua || cidade;
+        endereco = comCidade.length <= 40 ? comCidade : rua;
+        nomePagador = f(q, 34, 73).trim();
+        bairro = f(q, 114, 128).trim();
+        cep = f(q, 129, 136);
+        sac = sacadorAvalista(q);
+      } else {
+        aviso(`${ref}: instrução sem segmento Q, dados do pagador enviados em branco`);
+      }
 
       registros.push([
         ["Identificação do registro", "1"],
@@ -320,11 +424,11 @@
         ["Valor do abatimento", Fmt.num(int(p, 181, 195), 13, "abatimento")],
         ["Tipo de inscrição do pagador", tipoInsc],
         ["Inscrição do pagador", insc],
-        ["Nome do pagador", Fmt.alfa(f(q, 34, 73).trim(), 40)],
+        ["Nome do pagador", Fmt.alfa(nomePagador, 40)],
         ["Endereço do pagador", Fmt.alfa(endereco, 40)],
-        ["Mensagem", Fmt.alfa(cfg.bairroNaMensagem ? f(q, 114, 128).trim() : "", 12)],
-        ["CEP", Fmt.num(f(q, 129, 133), 5, "CEP")],
-        ["Sufixo do CEP", Fmt.num(f(q, 134, 136), 3, "sufixo CEP")],
+        ["Mensagem", Fmt.alfa(cfg.bairroNaMensagem ? bairro : "", 12)],
+        ["CEP", Fmt.num(cep.slice(0, 5), 5, "CEP")],
+        ["Sufixo do CEP", Fmt.num(cep.slice(5, 8), 3, "sufixo CEP")],
         ["Sacador avalista (documento)", sac.slice(0, 15)],
         ["Sacador avalista (nome)", sac.slice(15)],
       ]);
@@ -364,6 +468,7 @@
       avisos,
       totalTitulos: titulos.length,
       larguraRegistro: 400,
+      sequencial,
     };
   }
 
@@ -408,18 +513,28 @@
   }
 
   function converterRetorno(texto, configEntrada) {
+    const destino = perfil((configEntrada && configEntrada.layout240) || "febraban");
     const cfg = Object.assign(
       {
-        banco: "310",
-        nomeBanco: "VORTX DTVM",
+        layout240: "febraban",
+        banco: destino.banco,
+        nomeBanco: destino.nomeBanco,
         convenio: "",
+        agencia240: "",
+        dvAgencia: "",
+        conta240: "",
         dvConta: "",
+        carteira240: "",
         nossoNumeroComDv: true,
-        versaoArquivo: "107",
-        versaoLote: "060",
+        versaoArquivo: destino.versaoArquivo,
+        versaoLote: destino.versaoLote,
       },
       configEntrada
     );
+    for (const k of ["banco", "nomeBanco", "versaoArquivo", "versaoLote"])
+      if (String(cfg[k] ?? "").trim() === "") cfg[k] = destino[k];
+    if (cfg.layout240 === "bradesco" && !String(cfg.carteira240).replace(/\D/g, ""))
+      throw new ConversaoError("informe a carteira Bradesco (posições 038-040 da remessa 240)");
     const avisos = [];
     const aviso = (m) => avisos.push(m);
 
@@ -461,13 +576,18 @@
     const dataCredito = data6para8(header, 380, 385);
 
     const banco = Fmt.num(cfg.banco, 3, "código do banco");
-    const conta240 = [
-      ["Agência mantenedora", Fmt.num(agencia, 5, "agência")],
-      ["Dígito da agência", " "],
-      ["Conta corrente", Fmt.num(conta, 12, "conta")],
+    const convenio = destino.convenioNumerico ? Fmt.num(cfg.convenio, 20, "convênio") : Fmt.alfa(cfg.convenio, 20);
+    // Agência e conta do 240: as informadas (as que o ERP conhece); se vazias, as da Vórtx
+    const agencia240 = String(cfg.agencia240 ?? "").replace(/\D/g, "");
+    const conta240num = String(cfg.conta240 ?? "").replace(/\D/g, "");
+    const contaDo240 = (agVortx, contaVortx) => [
+      ["Agência mantenedora", Fmt.num(agencia240 || agVortx, 5, "agência")],
+      ["Dígito da agência", Fmt.alfa(cfg.dvAgencia, 1)],
+      ["Conta corrente", Fmt.num(conta240num || contaVortx, 12, "conta")],
       ["Dígito da conta", Fmt.alfa(cfg.dvConta, 1)],
       ["Dígito da agência/conta", " "],
     ];
+    const conta240 = contaDo240(agencia, conta);
 
     const registros = [];
     registros.push([
@@ -477,7 +597,7 @@
       ["Uso exclusivo FEBRABAN", Fmt.branco(9)],
       ["Tipo de inscrição da empresa", tipoInsc],
       ["Número de inscrição da empresa", Fmt.num(insc, 14, "inscrição da empresa")],
-      ["Código do convênio", Fmt.alfa(cfg.convenio, 20)],
+      ["Código do convênio", convenio],
       ...conta240,
       ["Nome da empresa", Fmt.alfa(nomeEmpresa, 30)],
       ["Nome do banco", Fmt.alfa(cfg.nomeBanco, 30)],
@@ -487,7 +607,7 @@
       ["Hora de geração do arquivo", "000000"],
       ["Número sequencial do arquivo", Fmt.num(aviso400, 6, "aviso bancário")],
       ["Versão do layout do arquivo", Fmt.num(cfg.versaoArquivo, 3, "versão do arquivo")],
-      ["Densidade de gravação", "00000"],
+      ["Densidade de gravação", destino.densidade],
       ["Reservado ao banco", Fmt.branco(20)],
       ["Reservado à empresa", Fmt.branco(20)],
       ["Uso exclusivo FEBRABAN", Fmt.branco(29)],
@@ -503,7 +623,7 @@
       ["Uso exclusivo FEBRABAN", " "],
       ["Tipo de inscrição da empresa", tipoInsc],
       ["Número de inscrição da empresa", Fmt.num(insc, 15, "inscrição da empresa")],
-      ["Código do convênio", Fmt.alfa(cfg.convenio, 20)],
+      ["Código do convênio", convenio],
       ...conta240,
       ["Nome da empresa", Fmt.alfa(nomeEmpresa, 30)],
       ["Mensagem 1", Fmt.branco(40)],
@@ -533,19 +653,13 @@
         aviso(`${ref}: ocorrência ${ocorrencia} com motivo D (devolvido) convertida para 26 (instrução rejeitada)`);
       }
 
-      let nn = f(l, 71, 82).replace(/\D/g, "");
-      if (!cfg.nossoNumeroComDv) nn = nn.slice(0, -1);
+      const nnVortx = f(l, 71, 81);
+      if (!/^\d{11}$/.test(nnVortx)) throw new ConversaoError(`${ref}: nosso número '${nnVortx.trim()}' (071-081) não é numérico`);
       const valor = int(l, 153, 165);
       const despesas = int(l, 176, 188);
       const pago = int(l, 254, 266);
       const liquido = pago > 0 ? Math.max(0, pago - despesas) : 0;
-      const contaTitulo = [
-        ["Agência mantenedora", Fmt.num(f(l, 25, 29), 5, "agência")],
-        ["Dígito da agência", " "],
-        ["Conta corrente", Fmt.num(f(l, 30, 37), 12, "conta")],
-        ["Dígito da conta", Fmt.alfa(cfg.dvConta, 1)],
-        ["Dígito da agência/conta", " "],
-      ];
+      const contaTitulo = contaDo240(f(l, 25, 29), f(l, 30, 37));
 
       registros.push([
         ["Código do banco", banco],
@@ -556,7 +670,7 @@
         ["Uso exclusivo FEBRABAN", " "],
         ["Código de movimento retorno", movimento],
         ...contaTitulo,
-        ["Nosso número", Fmt.num(nn, 20, "nosso número")],
+        ["Nosso número", destino.montarNossoNumero(nnVortx, cfg, f(l, 82, 82).replace(/\D/, ""))],
         ["Carteira", "1"],
         ["Número do documento (seu número)", Fmt.alfa(f(l, 117, 126).trim(), 15)],
         ["Data de vencimento", data6para8(l, 147, 152)],
@@ -636,12 +750,19 @@
     return {
       registros: saida,
       conteudo: saida.map((r) => r.linha).join("\r\n") + "\r\n",
-      nomeArquivo: `RET240_${dataArquivo}_${aviso400.padStart(5, "0")}.ret`,
+      nomeArquivo: destino.nomeRetorno(dataArquivo, aviso400),
       avisos,
       totalTitulos: convertidos,
       larguraRegistro: 240,
     };
   }
 
-  return { converter, converterRetorno, decodificar, dvNossoNumero, contaBeneficiario, ConversaoError };
+  const perfis = Object.fromEntries(Object.entries(PERFIS).map(([k, p]) => [k, {
+    nome: p.nome, banco: p.banco, nomeBanco: p.nomeBanco, versaoArquivo: p.versaoArquivo, versaoLote: p.versaoLote,
+  }]));
+
+  return {
+    converter, converterRetorno, decodificar, dvNossoNumero, dvNossoNumeroBradesco,
+    contaBeneficiario, perfis, ConversaoError,
+  };
 });
